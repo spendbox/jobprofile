@@ -1,18 +1,16 @@
 #!/usr/bin/env node
-/**
- * Runs SQL migrations on each Vercel deploy via the Supabase Management API.
- *
- * Required env vars (set in Vercel dashboard):
- *   SUPABASE_PROJECT_REF    — e.g. "abcdefghijklmnop" (from project URL)
- *   SUPABASE_ACCESS_TOKEN   — personal access token from supabase.com/dashboard/account/tokens
- *
- * Migration sources (applied in order):
- *   1. supabase/migrations/*.sql        — flat files, tracked by filename
- *   2. prisma/migrations/*/migration.sql — nested files, tracked by directory name
- *
- * Each migration name is recorded in public._migrations. Already-applied
- * migrations are skipped, making this safe to run on every deploy.
- */
+// Runs SQL migrations on each Vercel deploy via the Supabase Management API.
+//
+// Required env vars (set in Vercel dashboard):
+//   SUPABASE_PROJECT_REF    - e.g. "abcdefghijklmnop" (from project URL)
+//   SUPABASE_ACCESS_TOKEN   - personal access token from supabase.com/dashboard/account/tokens
+//
+// Migration sources (applied in order):
+//   1. supabase/migrations/*.sql                    - flat files, tracked by filename
+//   2. prisma/migrations/<name>/migration.sql       - nested dirs, tracked by dir name
+//
+// Each migration name is recorded in public._migrations. Already-applied
+// migrations are skipped, making this safe to run on every deploy.
 
 import { readdir, readFile, stat } from 'fs/promises'
 import { join, dirname } from 'path'
