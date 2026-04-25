@@ -313,12 +313,22 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       <div>
         <label className="label">CV / Resume</label>
         {form.cv_url && !uploadingCv && (
-          <p className="text-xs text-emerald-700 mb-1.5 flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            CV uploaded
-          </p>
+          <div className="flex items-center gap-3 mb-1.5">
+            <p className="text-xs text-emerald-700 flex items-center gap-1">
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+              </svg>
+              CV uploaded
+            </p>
+            <a
+              href={form.cv_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium underline"
+            >
+              View CV
+            </a>
+          </div>
         )}
         {uploadingCv && cvProgress !== null && (
           <div className="mb-2">

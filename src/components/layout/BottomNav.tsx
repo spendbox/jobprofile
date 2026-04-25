@@ -34,10 +34,9 @@ export function BottomNav() {
   const dashboardHref = userProfile.user_role === 'employer' ? '/dashboard/employer' : '/dashboard/talent'
 
   const links = [
-    { href: '/', label: 'Home', icon: <HomeIcon /> },
+    { href: dashboardHref, label: 'Dashboard', icon: <UserIcon /> },
     { href: '/search', label: 'Discover', icon: <SearchIcon /> },
     { href: '/requests', label: 'Requests', icon: <InboxIcon /> },
-    { href: dashboardHref, label: 'Dashboard', icon: <UserIcon /> },
   ]
 
   return (

@@ -173,6 +173,16 @@ export default function TalentDashboard() {
                     {profile.location && <span>{profile.location}</span>}
                     <span>{profile.profile_views} views</span>
                     <span>{requestCounts[profile.id] ?? 0} requests</span>
+                    {profile.cv_url && (
+                      <a
+                        href={profile.cv_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:text-indigo-700 font-medium"
+                      >
+                        View CV
+                      </a>
+                    )}
                   </div>
                 </div>
 
