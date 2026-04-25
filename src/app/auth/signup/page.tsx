@@ -29,23 +29,28 @@ export default function SignupPage() {
     const { data, error: signUpError } = await supabase.auth.signUp({
       email,
       password,
-      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        data: {
+          full_name: fullName.trim(),
+          user_role: role,
+          company_name: role === 'employer' ? companyName.trim() : '',
+        },
+      },
     })
 
     if (signUpError) { setError(signUpError.message); setLoading(false); return }
     if (!data.user) { setError('Something went wrong. Please try again.'); setLoading(false); return }
 
-    const { error: profileError } = await supabase.from('user_profiles').insert({
-      id: data.user.id,
-      full_name: fullName.trim(),
-      user_role: role,
-      company_name: role === 'employer' ? companyName.trim() : null,
-    })
-
-    if (profileError) { setError(profileError.message); setLoading(false); return }
-
-    router.push(role === 'employer' ? '/dashboard/employer' : '/dashboard/talent')
-    router.refresh()
+    // Profile row is created automatically by the handle_new_user DB trigger.
+    // If there's a session the user is signed in immediately (email confirm off).
+    // If not, they need to confirm their email first.
+    if (data.session) {
+      router.push(role === 'employer' ? '/dashboard/employer' : '/dashboard/talent')
+      router.refresh()
+    } else {
+      router.push('/auth/check-email')
+    }
   }
 
   return (
