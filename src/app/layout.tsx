@@ -7,7 +7,7 @@ import { AuthProvider } from '@/contexts/AuthContext'
 export const metadata: Metadata = {
   title: 'TalentDeck — Employers discover you',
   description:
-    'A reverse job marketplace where employers discover talent instead of candidates applying to jobs.',
+    'Build your profile, set your availability, and let employers come to you with interview requests.',
 }
 
 export const viewport: Viewport = {
