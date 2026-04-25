@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { formatSalary, availabilityColor, availabilityDot } from '@/lib/utils'
-import type { TalentProfile, AvailabilityStatus } from '@/types'
+import type { TalentProfile, AvailabilityStatus, UserProfile } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 
 interface ProfileCardProps {
@@ -22,6 +22,7 @@ export function ProfileCard({
 }: ProfileCardProps) {
   const name = profile.user_profiles?.full_name ?? 'Talent'
   const status = profile.availability_status as AvailabilityStatus
+  const isVerified = (profile.user_profiles as UserProfile | undefined)?.is_verified
 
   return (
     <div className="card overflow-hidden flex flex-col hover:shadow-md transition-shadow">
@@ -37,7 +38,16 @@ export function ProfileCard({
         <div className="flex items-start gap-3">
           <Avatar name={name} size="md" src={profile.user_profiles?.avatar_url} />
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-slate-900 truncate">{profile.role_title}</h3>
+            <div className="flex items-center gap-1.5 flex-wrap">
+                <h3 className="font-bold text-slate-900 truncate">{profile.role_title}</h3>
+                {isVerified && (
+                  <span title="Verified talent" className="inline-flex items-center justify-center w-4 h-4 bg-indigo-600 rounded-full flex-shrink-0">
+                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </span>
+                )}
+              </div>
             {(profile.location || profile.timezone) && (
               <p className="text-xs text-slate-500 mt-1 truncate">
                 {[profile.location, profile.timezone].filter(Boolean).join(' · ')}

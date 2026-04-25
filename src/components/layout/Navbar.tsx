@@ -12,6 +12,7 @@ export function Navbar() {
   const pathname = usePathname()
 
   const isAuthPage = pathname.startsWith('/auth')
+  if (pathname.startsWith('/admin')) return null
 
   const dashboardHref = userProfile?.user_role === 'employer'
     ? '/dashboard/employer'
