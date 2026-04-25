@@ -88,7 +88,7 @@ export default function RequestsPage() {
         <p className="section-label mb-1">Inbox</p>
         <h1 className="text-2xl font-black text-slate-900">Interview Requests</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {isEmployer ? 'Requests you've sent to talent' : 'Requests received from employers'}
+          {isEmployer ? "Requests you've sent to talent" : 'Requests received from employers'}
           {requests.length > 0 && ` · ${requests.length} total`}
         </p>
       </div>
