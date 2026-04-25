@@ -144,10 +144,10 @@ export default function TalentDashboard() {
             </span>
             <div className="flex-1">
               <p className="text-sm font-bold text-slate-700">Not yet verified</p>
-              <p className="text-xs text-slate-500 mt-0.5">Take proficiency tests to demonstrate your skills while awaiting verification.</p>
+              <p className="text-xs text-slate-500 mt-0.5">Submit an ID document to get a verified badge on your profile.</p>
             </div>
-            <Link href="/dashboard/talent/tests" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex-shrink-0">
-              Take Tests
+            <Link href="/dashboard/talent/verify" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex-shrink-0">
+              Get Verified
             </Link>
           </div>
         )
