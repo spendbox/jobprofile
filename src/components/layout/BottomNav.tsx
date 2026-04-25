@@ -1,8 +1,10 @@
 'use client'
 
 import Link from 'next/link'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/lib/supabase/client'
 
 const SearchIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -28,6 +30,38 @@ const UserIcon = () => (
 export function BottomNav() {
   const pathname = usePathname()
   const { userProfile } = useAuth()
+  const [pendingCount, setPendingCount] = useState(0)
+
+  useEffect(() => {
+    if (!userProfile) { setPendingCount(0); return }
+    const supabase = createClient()
+
+    const fetchCount = async () => {
+      if (userProfile.user_role === 'talent') {
+        const { data: profileIds } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', userProfile.id)
+        const ids = profileIds?.map((p) => p.id) ?? []
+        if (ids.length === 0) { setPendingCount(0); return }
+        const { count } = await supabase
+          .from('interview_requests')
+          .select('id', { count: 'exact', head: true })
+          .in('profile_id', ids)
+          .eq('status', 'pending')
+        setPendingCount(count ?? 0)
+      } else {
+        const { count } = await supabase
+          .from('interview_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('employer_id', userProfile.id)
+          .eq('status', 'pending')
+        setPendingCount(count ?? 0)
+      }
+    }
+
+    fetchCount()
+  }, [userProfile])
 
   if (pathname.startsWith('/auth') || pathname.startsWith('/admin') || !userProfile) return null
 
@@ -35,17 +69,17 @@ export function BottomNav() {
   const dashboardHref = isTalent ? '/dashboard/talent' : '/dashboard/employer'
 
   const links = [
-    { href: dashboardHref, label: 'Dashboard', icon: <UserIcon /> },
+    { href: dashboardHref, label: 'Dashboard', icon: <UserIcon />, badge: 0 },
     isTalent
-      ? { href: '/dashboard/talent/cvs', label: 'My CVs', icon: <DocumentIcon /> }
-      : { href: '/search', label: 'Discover', icon: <SearchIcon /> },
-    { href: '/requests', label: 'Requests', icon: <InboxIcon /> },
+      ? { href: '/dashboard/talent/cvs', label: 'My CVs', icon: <DocumentIcon />, badge: 0 }
+      : { href: '/search', label: 'Discover', icon: <SearchIcon />, badge: 0 },
+    { href: '/requests', label: 'Requests', icon: <InboxIcon />, badge: pendingCount },
   ]
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 safe-area-bottom">
       <div className="flex items-stretch h-16">
-        {links.map(({ href, label, icon }) => {
+        {links.map(({ href, label, icon, badge }) => {
           const isActive = pathname.startsWith(href)
           return (
             <Link
@@ -55,7 +89,14 @@ export function BottomNav() {
                 isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
-              {icon}
+              <span className="relative">
+                {icon}
+                {badge > 0 && (
+                  <span className="absolute -top-1 -right-1.5 w-3.5 h-3.5 bg-red-500 text-white text-[8px] font-bold rounded-full flex items-center justify-center leading-none">
+                    {badge > 9 ? '9+' : badge}
+                  </span>
+                )}
+              </span>
               {label}
             </Link>
           )

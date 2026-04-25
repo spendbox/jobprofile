@@ -97,6 +97,7 @@ export interface SearchFilters {
   max_salary?: number
   availability?: AvailabilityStatus[]
   location?: string
+  verified_only?: boolean
 }
 
 export const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {

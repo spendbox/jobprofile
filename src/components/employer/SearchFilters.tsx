@@ -153,6 +153,26 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
           onChange={(e) => update({ location: e.target.value })}
         />
       </div>
+
+      <div>
+        <label className="label text-xs uppercase tracking-wide text-slate-500">Trust</label>
+        <label className="flex items-center gap-2 py-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-indigo-600 w-4 h-4"
+            checked={filters.verified_only ?? false}
+            onChange={(e) => update({ verified_only: e.target.checked || undefined })}
+          />
+          <span className="text-sm text-slate-700 flex items-center gap-1.5">
+            Verified only
+            <span className="inline-flex items-center justify-center w-4 h-4 bg-indigo-600 rounded-full flex-shrink-0">
+              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+          </span>
+        </label>
+      </div>
     </div>
   )
 
