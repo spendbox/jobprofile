@@ -1,10 +1,11 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { TIMEZONES } from '@/types'
-import type { TalentProfile, AvailabilityStatus } from '@/types'
+import type { TalentProfile, AvailabilityStatus, UserCV } from '@/types'
 
 interface ProfileFormProps {
   userId: string
@@ -27,11 +28,22 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   const [error, setError] = useState('')
   const [skillInput, setSkillInput] = useState('')
   const [uploadingCv, setUploadingCv] = useState(false)
+  const [userCvs, setUserCvs] = useState<UserCV[]>([])
   const errorRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
   }, [error])
+
+  useEffect(() => {
+    supabase
+      .from('user_cvs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setUserCvs(data as UserCV[]) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   const [form, setForm] = useState({
     role_title: existing?.role_title ?? '',
@@ -96,8 +108,16 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
         xhr.send(file)
       })
 
-      const { data } = supabase.storage.from('cvs').getPublicUrl(path)
-      set('cv_url', data.publicUrl)
+      const { data: pubData } = supabase.storage.from('cvs').getPublicUrl(path)
+      const { data: newCv } = await supabase
+        .from('user_cvs')
+        .insert({ user_id: userId, display_name: file.name, file_path: path, file_url: pubData.publicUrl })
+        .select()
+        .single()
+      if (newCv) {
+        setUserCvs((prev) => [newCv as UserCV, ...prev])
+        set('cv_url', pubData.publicUrl)
+      }
       setCvProgress(100)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'CV upload failed')
@@ -311,25 +331,50 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       </div>
 
       <div>
-        <label className="label">CV / Resume</label>
-        {form.cv_url && !uploadingCv && (
-          <div className="flex items-center gap-3 mb-1.5">
-            <p className="text-xs text-emerald-700 flex items-center gap-1">
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
-              CV uploaded
-            </p>
-            <a
-              href={form.cv_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs text-indigo-600 hover:text-indigo-700 font-medium underline"
-            >
-              View CV
-            </a>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="label mb-0">CV / Resume</label>
+          <Link href="/dashboard/talent/cvs" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+            Manage CVs
+          </Link>
+        </div>
+
+        {userCvs.length > 0 && (
+          <div className="space-y-1.5 mb-3">
+            <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${!form.cv_url ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+              <input
+                type="radio"
+                checked={!form.cv_url}
+                onChange={() => set('cv_url', '')}
+                className="accent-indigo-600"
+              />
+              <span className="text-sm text-slate-500">No CV attached</span>
+            </label>
+            {userCvs.map((cv) => (
+              <label
+                key={cv.id}
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${form.cv_url === cv.file_url ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}
+              >
+                <input
+                  type="radio"
+                  checked={form.cv_url === cv.file_url}
+                  onChange={() => set('cv_url', cv.file_url)}
+                  className="accent-indigo-600"
+                />
+                <span className="flex-1 text-sm text-slate-900 truncate">{cv.display_name}</span>
+                <a
+                  href={cv.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex-shrink-0"
+                >
+                  View
+                </a>
+              </label>
+            ))}
           </div>
         )}
+
         {uploadingCv && cvProgress !== null && (
           <div className="mb-2">
             <div className="flex justify-between text-xs text-slate-500 mb-1">
@@ -344,21 +389,18 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
             </div>
           </div>
         )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,.doc,.docx"
-          className="hidden"
-          onChange={handleCvUpload}
-        />
+        <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleCvUpload} />
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploadingCv}
           className="btn-secondary w-full text-sm"
         >
-          {uploadingCv ? `Uploading… ${cvProgress ?? 0}%` : form.cv_url ? 'Replace CV' : 'Upload CV (PDF, DOC)'}
+          {uploadingCv ? `Uploading… ${cvProgress ?? 0}%` : '+ Upload New CV'}
         </button>
+        {userCvs.length === 0 && !uploadingCv && (
+          <p className="text-xs text-slate-400 mt-1.5 text-center">No CVs yet — upload one above or visit Manage CVs.</p>
+        )}
       </div>
 
       <div className="flex gap-3 pt-2">

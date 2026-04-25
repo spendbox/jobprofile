@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
+import Link from 'next/link'
 import { ProfileForm } from '@/components/talent/ProfileForm'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
@@ -103,12 +104,17 @@ export default function TalentDashboard() {
             <p className="text-sm text-slate-500">{userProfile?.full_name}</p>
           </div>
         </div>
-        <button onClick={() => setModal({ type: 'create' })} className="btn-primary">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-          </svg>
-          New Profile
-        </button>
+        <div className="flex items-center gap-2">
+          <Link href="/dashboard/talent/cvs" className="btn-secondary text-sm">
+            Manage CVs
+          </Link>
+          <button onClick={() => setModal({ type: 'create' })} className="btn-primary">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+            </svg>
+            New Profile
+          </button>
+        </div>
       </div>
 
       {/* Stats */}

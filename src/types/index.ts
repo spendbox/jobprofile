@@ -47,6 +47,15 @@ export interface InterviewRequest {
   employer?: UserProfile
 }
 
+export interface UserCV {
+  id: string
+  user_id: string
+  display_name: string
+  file_path: string
+  file_url: string
+  created_at: string
+}
+
 export interface SearchFilters {
   role_title?: string
   skills?: string[]
