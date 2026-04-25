@@ -61,20 +61,50 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   const removeSkill = (skill: string) =>
     set('skills', form.skills.filter((s) => s !== skill))
 
+  const [cvProgress, setCvProgress] = useState<number | null>(null)
+
   const handleCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingCv(true)
+    setCvProgress(0)
     setError('')
-    const path = `${userId}/${Date.now()}_${file.name}`
-    const { error: uploadError } = await supabase.storage.from('cvs').upload(path, file, { upsert: true })
-    if (uploadError) {
-      setError(`CV upload failed: ${uploadError.message}`)
-    } else {
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setError('Not authenticated — please refresh and try again.'); setUploadingCv(false); return }
+
+      const path = `${userId}/${Date.now()}_${file.name}`
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/cvs/${path}`
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', url)
+        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        xhr.setRequestHeader('x-upsert', 'true')
+
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) setCvProgress(Math.round((evt.loaded / evt.total) * 100))
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve()
+          else reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`))
+        }
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.send(file)
+      })
+
       const { data } = supabase.storage.from('cvs').getPublicUrl(path)
       set('cv_url', data.publicUrl)
+      setCvProgress(100)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'CV upload failed')
+      setCvProgress(null)
+    } finally {
+      setUploadingCv(false)
     }
-    setUploadingCv(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -99,25 +129,30 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       availability_updated_at: new Date().toISOString(),
     }
 
-    let data, dbError
-    if (existing?.id) {
-      ;({ data, error: dbError } = await supabase
-        .from('profiles')
-        .update(payload)
-        .eq('id', existing.id)
-        .select('*')
-        .single())
-    } else {
-      ;({ data, error: dbError } = await supabase
-        .from('profiles')
-        .insert(payload)
-        .select('*')
-        .single())
-    }
+    try {
+      let data, dbError
+      if (existing?.id) {
+        ;({ data, error: dbError } = await supabase
+          .from('profiles')
+          .update(payload)
+          .eq('id', existing.id)
+          .select('*')
+          .single())
+      } else {
+        ;({ data, error: dbError } = await supabase
+          .from('profiles')
+          .insert(payload)
+          .select('*')
+          .single())
+      }
 
-    setLoading(false)
-    if (dbError) { setError(dbError.message); return }
-    onSaved(data as TalentProfile)
+      if (dbError) { setError(dbError.message); return }
+      onSaved(data as TalentProfile)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -277,13 +312,27 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
 
       <div>
         <label className="label">CV / Resume</label>
-        {form.cv_url && (
+        {form.cv_url && !uploadingCv && (
           <p className="text-xs text-emerald-700 mb-1.5 flex items-center gap-1">
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
             </svg>
             CV uploaded
           </p>
+        )}
+        {uploadingCv && cvProgress !== null && (
+          <div className="mb-2">
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>Uploading…</span>
+              <span>{cvProgress}%</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5">
+              <div
+                className="bg-indigo-500 h-1.5 rounded-full transition-all duration-150"
+                style={{ width: `${cvProgress}%` }}
+              />
+            </div>
+          </div>
         )}
         <input
           ref={fileRef}
@@ -298,7 +347,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
           disabled={uploadingCv}
           className="btn-secondary w-full text-sm"
         >
-          {uploadingCv ? 'Uploading…' : form.cv_url ? 'Replace CV' : 'Upload CV (PDF, DOC)'}
+          {uploadingCv ? `Uploading… ${cvProgress ?? 0}%` : form.cv_url ? 'Replace CV' : 'Upload CV (PDF, DOC)'}
         </button>
       </div>
 
