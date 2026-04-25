@@ -59,7 +59,6 @@ export default function SearchPage() {
 
     if (data) {
       setProfiles(data as TalentProfile[])
-      // Fire-and-forget exposure tracking — does not block render
       const ids = data.map((p) => p.id)
       if (ids.length > 0)
         supabase.rpc('increment_times_shown_batch', { profile_ids: ids }).then(() => {})
@@ -106,12 +105,22 @@ export default function SearchPage() {
 
   return (
     <div className="page-container">
-      <div className="flex items-center justify-between mb-6">
+
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
         <div>
-          <h1 className="text-xl font-bold text-slate-900">Discover Talent</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{total} profiles found</p>
+          <p className="section-label mb-1">Browse</p>
+          <h1 className="text-2xl font-black text-slate-900">Discover Talent</h1>
+          {!loading && (
+            <p className="text-sm text-slate-500 mt-1">
+              {total} profile{total !== 1 ? 's' : ''} found
+            </p>
+          )}
         </div>
-        <button onClick={() => setFiltersOpen(true)} className="md:hidden btn-secondary gap-2">
+        <button
+          onClick={() => setFiltersOpen(true)}
+          className="md:hidden btn-secondary gap-2"
+        >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
           </svg>
@@ -120,35 +129,45 @@ export default function SearchPage() {
       </div>
 
       <div className="flex gap-6">
-        <SearchFiltersPanel filters={filters} onChange={(f) => { setFilters(f); setPage(0) }} isOpen={filtersOpen} onClose={() => setFiltersOpen(false)} />
+        <SearchFiltersPanel
+          filters={filters}
+          onChange={(f) => { setFilters(f); setPage(0) }}
+          isOpen={filtersOpen}
+          onClose={() => setFiltersOpen(false)}
+        />
 
         <div className="flex-1 min-w-0">
           {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               {Array.from({ length: 6 }).map((_, i) => (
-                <div key={i} className="card p-5 animate-pulse">
-                  <div className="flex gap-3 mb-4">
-                    <div className="w-10 h-10 bg-slate-200 rounded-full" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-slate-200 rounded w-2/3" />
-                      <div className="h-3 bg-slate-200 rounded w-1/2" />
+                <div key={i} className="card p-6 animate-pulse">
+                  <div className="flex gap-4 mb-5">
+                    <div className="w-12 h-12 bg-slate-200 rounded-full flex-shrink-0" />
+                    <div className="flex-1 space-y-2.5">
+                      <div className="h-4 bg-slate-200 rounded-lg w-2/3" />
+                      <div className="h-3 bg-slate-200 rounded-lg w-1/2" />
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <div className="h-3 bg-slate-200 rounded" />
-                    <div className="h-3 bg-slate-200 rounded w-3/4" />
+                    <div className="h-3 bg-slate-200 rounded-lg" />
+                    <div className="h-3 bg-slate-200 rounded-lg w-3/4" />
                   </div>
                 </div>
               ))}
             </div>
           ) : profiles.length === 0 ? (
-            <div className="card p-12 text-center">
-              <p className="font-semibold text-slate-700 mb-1">No profiles match your filters</p>
+            <div className="card p-14 text-center">
+              <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                <svg className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <p className="font-bold text-slate-700 mb-2">No profiles match your filters</p>
               <p className="text-sm text-slate-500">Try adjusting or clearing the filters</p>
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {profiles.map((profile) => (
                   <ProfileCard
                     key={profile.id}
@@ -159,11 +178,26 @@ export default function SearchPage() {
                   />
                 ))}
               </div>
+
               {totalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-6">
-                  <button disabled={page === 0} onClick={() => setPage((p) => p - 1)} className="btn-secondary px-4 py-2 text-sm disabled:opacity-40">Previous</button>
-                  <span className="text-sm text-slate-500">{page + 1} / {totalPages}</span>
-                  <button disabled={page >= totalPages - 1} onClick={() => setPage((p) => p + 1)} className="btn-secondary px-4 py-2 text-sm disabled:opacity-40">Next</button>
+                <div className="flex items-center justify-center gap-3 mt-8">
+                  <button
+                    disabled={page === 0}
+                    onClick={() => setPage((p) => p - 1)}
+                    className="btn-secondary px-5 py-2.5 text-sm disabled:opacity-40"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-slate-500 font-medium">
+                    {page + 1} / {totalPages}
+                  </span>
+                  <button
+                    disabled={page >= totalPages - 1}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="btn-secondary px-5 py-2.5 text-sm disabled:opacity-40"
+                  >
+                    Next
+                  </button>
                 </div>
               )}
             </>
@@ -171,13 +205,14 @@ export default function SearchPage() {
         </div>
       </div>
 
+      {/* Request modal */}
       {requestModal && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h3 className="font-semibold text-slate-900 mb-1">Send Interview Request</h3>
-            <p className="text-sm text-slate-500 mb-4">Add an optional message to introduce yourself.</p>
+            <h3 className="font-bold text-slate-900 mb-1">Send Interview Request</h3>
+            <p className="text-sm text-slate-500 mb-5 leading-relaxed">Add an optional message to introduce yourself.</p>
             <textarea
-              className="input-base resize-none mb-4"
+              className="input-base resize-none mb-5"
               rows={3}
               placeholder="Hi! We're looking for someone to join our team…"
               value={requestMessage}
