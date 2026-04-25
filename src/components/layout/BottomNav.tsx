@@ -2,18 +2,16 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { UserProfile } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 
 const SearchIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
   </svg>
 )
-const HomeIcon = () => (
+const DocumentIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
   </svg>
 )
 const InboxIcon = () => (
@@ -29,46 +27,32 @@ const UserIcon = () => (
 
 export function BottomNav() {
   const pathname = usePathname()
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const supabase = createClient()
+  const { userProfile } = useAuth()
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data } = await supabase.from('user_profiles').select('*').eq('id', authUser.id).single()
-      if (data) setUser(data as UserProfile)
-    }
-    fetchUser()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => fetchUser())
-    return () => subscription.unsubscribe()
-  }, [])
+  if (pathname.startsWith('/auth') || pathname.startsWith('/admin') || !userProfile) return null
 
-  if (pathname.startsWith('/auth') || !user) return null
-
-  const dashboardHref = user.user_role === 'employer' ? '/dashboard/employer' : '/dashboard/talent'
+  const isTalent = userProfile.user_role === 'talent'
+  const dashboardHref = isTalent ? '/dashboard/talent' : '/dashboard/employer'
 
   const links = [
-    { href: '/', label: 'Home', icon: <HomeIcon /> },
-    { href: '/search', label: 'Discover', icon: <SearchIcon /> },
-    { href: '/requests', label: 'Requests', icon: <InboxIcon /> },
     { href: dashboardHref, label: 'Dashboard', icon: <UserIcon /> },
+    isTalent
+      ? { href: '/dashboard/talent/cvs', label: 'My CVs', icon: <DocumentIcon /> }
+      : { href: '/search', label: 'Discover', icon: <SearchIcon /> },
+    { href: '/requests', label: 'Requests', icon: <InboxIcon /> },
   ]
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 safe-area-bottom">
       <div className="flex items-stretch h-16">
         {links.map(({ href, label, icon }) => {
-          const isActive =
-            href === '/' ? pathname === '/' : pathname.startsWith(href)
+          const isActive = pathname.startsWith(href)
           return (
             <Link
               key={href}
               href={href}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
-                isActive
-                  ? 'text-indigo-600'
-                  : 'text-slate-500 hover:text-slate-700'
+                isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {icon}

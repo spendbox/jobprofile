@@ -1,0 +1,2 @@
+-- Baseline migration: schema already applied via supabase/migrations/001_initial_schema.sql
+-- This empty migration lets Prisma record the baseline without re-creating existing tables.

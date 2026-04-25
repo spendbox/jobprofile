@@ -2,7 +2,7 @@ import { getInitials } from '@/lib/utils'
 
 interface AvatarProps {
   name: string
-  size?: 'sm' | 'md' | 'lg'
+  size?: 'sm' | 'md' | 'lg' | 'xl'
   src?: string
 }
 
@@ -10,6 +10,7 @@ const sizes = {
   sm: 'w-8 h-8 text-xs',
   md: 'w-10 h-10 text-sm',
   lg: 'w-14 h-14 text-base',
+  xl: 'w-20 h-20 text-xl',
 }
 
 const bgColors = [

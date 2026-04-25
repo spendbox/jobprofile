@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
+import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { TIMEZONES } from '@/types'
-import type { TalentProfile, AvailabilityStatus } from '@/types'
+import type { TalentProfile, AvailabilityStatus, UserCV } from '@/types'
 
 interface ProfileFormProps {
   userId: string
@@ -27,6 +28,22 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   const [error, setError] = useState('')
   const [skillInput, setSkillInput] = useState('')
   const [uploadingCv, setUploadingCv] = useState(false)
+  const [userCvs, setUserCvs] = useState<UserCV[]>([])
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [error])
+
+  useEffect(() => {
+    supabase
+      .from('user_cvs')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .then(({ data }) => { if (data) setUserCvs(data as UserCV[]) })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId])
 
   const [form, setForm] = useState({
     role_title: existing?.role_title ?? '',
@@ -56,17 +73,58 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   const removeSkill = (skill: string) =>
     set('skills', form.skills.filter((s) => s !== skill))
 
+  const [cvProgress, setCvProgress] = useState<number | null>(null)
+
   const handleCvUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingCv(true)
-    const path = `${userId}/${Date.now()}_${file.name}`
-    const { error: uploadError } = await supabase.storage.from('cvs').upload(path, file, { upsert: true })
-    if (!uploadError) {
-      const { data } = supabase.storage.from('cvs').getPublicUrl(path)
-      set('cv_url', data.publicUrl)
+    setCvProgress(0)
+    setError('')
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setError('Not authenticated — please refresh and try again.'); setUploadingCv(false); return }
+
+      const path = `${userId}/${Date.now()}_${file.name}`
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/cvs/${path}`
+
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', url)
+        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+        xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream')
+        xhr.setRequestHeader('x-upsert', 'true')
+
+        xhr.upload.onprogress = (evt) => {
+          if (evt.lengthComputable) setCvProgress(Math.round((evt.loaded / evt.total) * 100))
+        }
+
+        xhr.onload = () => {
+          if (xhr.status >= 200 && xhr.status < 300) resolve()
+          else reject(new Error(`Upload failed (${xhr.status}): ${xhr.responseText}`))
+        }
+        xhr.onerror = () => reject(new Error('Network error during upload'))
+        xhr.send(file)
+      })
+
+      const { data: pubData } = supabase.storage.from('cvs').getPublicUrl(path)
+      const { data: newCv } = await supabase
+        .from('user_cvs')
+        .insert({ user_id: userId, display_name: file.name, file_path: path, file_url: pubData.publicUrl })
+        .select()
+        .single()
+      if (newCv) {
+        setUserCvs((prev) => [newCv as UserCV, ...prev])
+        set('cv_url', pubData.publicUrl)
+      }
+      setCvProgress(100)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'CV upload failed')
+      setCvProgress(null)
+    } finally {
+      setUploadingCv(false)
     }
-    setUploadingCv(false)
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,31 +149,36 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       availability_updated_at: new Date().toISOString(),
     }
 
-    let data, dbError
-    if (existing?.id) {
-      ;({ data, error: dbError } = await supabase
-        .from('profiles')
-        .update(payload)
-        .eq('id', existing.id)
-        .select('*, user_profiles(*)')
-        .single())
-    } else {
-      ;({ data, error: dbError } = await supabase
-        .from('profiles')
-        .insert(payload)
-        .select('*, user_profiles(*)')
-        .single())
-    }
+    try {
+      let data, dbError
+      if (existing?.id) {
+        ;({ data, error: dbError } = await supabase
+          .from('profiles')
+          .update(payload)
+          .eq('id', existing.id)
+          .select('*')
+          .single())
+      } else {
+        ;({ data, error: dbError } = await supabase
+          .from('profiles')
+          .insert(payload)
+          .select('*')
+          .single())
+      }
 
-    setLoading(false)
-    if (dbError) { setError(dbError.message); return }
-    onSaved(data as TalentProfile)
+      if (dbError) { setError(dbError.message); return }
+      onSaved(data as TalentProfile)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+        <div ref={errorRef} className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
           {error}
         </div>
       )}
@@ -268,30 +331,76 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       </div>
 
       <div>
-        <label className="label">CV / Resume</label>
-        {form.cv_url && (
-          <p className="text-xs text-emerald-700 mb-1.5 flex items-center gap-1">
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            CV uploaded
-          </p>
+        <div className="flex items-center justify-between mb-1.5">
+          <label className="label mb-0">CV / Resume</label>
+          <Link href="/dashboard/talent/cvs" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
+            Manage CVs
+          </Link>
+        </div>
+
+        {userCvs.length > 0 && (
+          <div className="space-y-1.5 mb-3">
+            <label className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${!form.cv_url ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+              <input
+                type="radio"
+                checked={!form.cv_url}
+                onChange={() => set('cv_url', '')}
+                className="accent-indigo-600"
+              />
+              <span className="text-sm text-slate-500">No CV attached</span>
+            </label>
+            {userCvs.map((cv) => (
+              <label
+                key={cv.id}
+                className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${form.cv_url === cv.file_url ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}
+              >
+                <input
+                  type="radio"
+                  checked={form.cv_url === cv.file_url}
+                  onChange={() => set('cv_url', cv.file_url)}
+                  className="accent-indigo-600"
+                />
+                <span className="flex-1 text-sm text-slate-900 truncate">{cv.display_name}</span>
+                <a
+                  href={cv.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex-shrink-0"
+                >
+                  View
+                </a>
+              </label>
+            ))}
+          </div>
         )}
-        <input
-          ref={fileRef}
-          type="file"
-          accept=".pdf,.doc,.docx"
-          className="hidden"
-          onChange={handleCvUpload}
-        />
+
+        {uploadingCv && cvProgress !== null && (
+          <div className="mb-2">
+            <div className="flex justify-between text-xs text-slate-500 mb-1">
+              <span>Uploading…</span>
+              <span>{cvProgress}%</span>
+            </div>
+            <div className="w-full bg-slate-100 rounded-full h-1.5">
+              <div
+                className="bg-indigo-500 h-1.5 rounded-full transition-all duration-150"
+                style={{ width: `${cvProgress}%` }}
+              />
+            </div>
+          </div>
+        )}
+        <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleCvUpload} />
         <button
           type="button"
           onClick={() => fileRef.current?.click()}
           disabled={uploadingCv}
           className="btn-secondary w-full text-sm"
         >
-          {uploadingCv ? 'Uploading…' : form.cv_url ? 'Replace CV' : 'Upload CV (PDF, DOC)'}
+          {uploadingCv ? `Uploading… ${cvProgress ?? 0}%` : '+ Upload New CV'}
         </button>
+        {userCvs.length === 0 && !uploadingCv && (
+          <p className="text-xs text-slate-400 mt-1.5 text-center">No CVs yet — upload one above or visit Manage CVs.</p>
+        )}
       </div>
 
       <div className="flex gap-3 pt-2">

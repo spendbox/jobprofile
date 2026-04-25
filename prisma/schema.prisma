@@ -1,0 +1,82 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  // URL is set in prisma.config.ts from DATABASE_URL / DIRECT_URL env vars
+}
+
+// ─── Models ───────────────────────────────────────────────────────────────────
+// Note: id maps to auth.users.id (Supabase Auth).
+// We do not model auth.users itself since it lives in the protected `auth` schema.
+
+model UserProfile {
+  id           String   @id @db.Uuid
+  full_name    String
+  user_role    String   // 'talent' | 'employer'
+  company_name String?
+  avatar_url   String?
+  created_at   DateTime @default(now()) @db.Timestamptz(6)
+
+  profiles           Profile[]
+  sent_requests      InterviewRequest[] @relation("EmployerRequests")
+
+  @@map("user_profiles")
+}
+
+model Profile {
+  id                      String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  user_id                 String   @db.Uuid
+  role_title              String
+  bio                     String?
+  skills                  String[]
+  years_experience        Int      @default(0)
+  salary_expectation      Int?
+  location                String?
+  timezone                String?
+  availability_status     String   @default("open")
+  portfolio_url           String?
+  cv_url                  String?
+  intro_video_url         String?
+  profile_views           Int      @default(0)
+  times_shown             Int      @default(0)
+  availability_updated_at DateTime @default(now()) @db.Timestamptz(6)
+  created_at              DateTime @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime @default(now()) @db.Timestamptz(6)
+
+  user               UserProfile        @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  interview_requests InterviewRequest[]
+  views              ProfileView[]
+
+  @@map("profiles")
+}
+
+model InterviewRequest {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id String   @db.Uuid
+  profile_id  String   @db.Uuid
+  status      String   @default("pending") // 'pending' | 'accepted' | 'declined'
+  stage       String   @default("discovered") // 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
+  message     String?
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  updated_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  employer UserProfile @relation("EmployerRequests", fields: [employer_id], references: [id], onDelete: Cascade)
+  profile  Profile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([employer_id, profile_id])
+  @@map("interview_requests")
+}
+
+model ProfileView {
+  id         String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  profile_id String   @db.Uuid
+  viewer_id  String?  @db.Uuid
+  viewed_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  profile Profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@map("profile_views")
+}

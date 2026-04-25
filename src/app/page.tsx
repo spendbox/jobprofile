@@ -40,9 +40,6 @@ export default function LandingPage() {
       {/* Hero */}
       <section className="bg-gradient-to-br from-indigo-50 via-white to-white px-4 pt-16 pb-20 text-center">
         <div className="max-w-2xl mx-auto">
-          <span className="inline-block bg-indigo-100 text-indigo-700 text-xs font-semibold px-3 py-1.5 rounded-full mb-4">
-            Reverse Job Marketplace
-          </span>
           <h1 className="text-4xl sm:text-5xl font-extrabold text-slate-900 leading-tight mb-4">
             Employers discover you.{' '}
             <span className="text-indigo-600">No applications.</span>
