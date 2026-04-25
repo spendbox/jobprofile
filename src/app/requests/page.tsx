@@ -17,52 +17,47 @@ export default function RequestsPage() {
 
   const [requests, setRequests] = useState<InterviewRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [tab, setTab] = useState<'received' | 'sent'>('received')
-
-  const loadRequests = async (role: string, currentTab: string) => {
-    if (!userProfile) return
-    setLoading(true)
-
-    if (role === 'talent' || currentTab === 'received') {
-      const { data: myProfiles } = await supabase.from('profiles').select('id').eq('user_id', userProfile.id)
-      const profileIds = myProfiles?.map((p) => p.id) ?? []
-
-      if (profileIds.length > 0) {
-        const { data, error } = await supabase
-          .from('interview_requests')
-          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), employer:user_profiles!ir_employer_user_profiles_fkey(*)')
-          .in('profile_id', profileIds)
-          .order('created_at', { ascending: false })
-        if (error) console.error('requests error', error)
-        if (data) setRequests(data as InterviewRequest[])
-        else setRequests([])
-      } else {
-        setRequests([])
-      }
-    } else {
-      const { data, error } = await supabase
-        .from('interview_requests')
-        .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
-        .eq('employer_id', userProfile.id)
-        .order('created_at', { ascending: false })
-      if (error) console.error('requests error', error)
-      if (data) setRequests(data as InterviewRequest[])
-    }
-    setLoading(false)
-  }
 
   useEffect(() => {
     if (loadingAuth || !userProfile) return
-    const defaultTab = userProfile.user_role === 'employer' ? 'sent' : 'received'
-    setTab(defaultTab)
-    loadRequests(userProfile.user_role, defaultTab)
+
+    const load = async () => {
+      setLoading(true)
+
+      if (userProfile.user_role === 'talent') {
+        const { data: myProfiles } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', userProfile.id)
+        const profileIds = myProfiles?.map((p) => p.id) ?? []
+
+        if (profileIds.length > 0) {
+          const { data, error } = await supabase
+            .from('interview_requests')
+            .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), employer:user_profiles!ir_employer_user_profiles_fkey(*)')
+            .in('profile_id', profileIds)
+            .order('created_at', { ascending: false })
+          if (error) console.error('requests error', error)
+          setRequests((data as InterviewRequest[]) ?? [])
+        } else {
+          setRequests([])
+        }
+      } else {
+        const { data, error } = await supabase
+          .from('interview_requests')
+          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
+          .eq('employer_id', userProfile.id)
+          .order('created_at', { ascending: false })
+        if (error) console.error('requests error', error)
+        setRequests((data as InterviewRequest[]) ?? [])
+      }
+
+      setLoading(false)
+    }
+
+    load()
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userProfile, loadingAuth])
-
-  const handleTabChange = (newTab: 'received' | 'sent') => {
-    setTab(newTab)
-    if (userProfile) loadRequests(userProfile.user_role, newTab)
-  }
 
   const updateStatus = async (requestId: string, status: 'accepted' | 'declined') => {
     const { data } = await supabase
@@ -83,6 +78,7 @@ export default function RequestsPage() {
   }
 
   const isEmployer = userProfile?.user_role === 'employer'
+  const isTalent = userProfile?.user_role === 'talent'
 
   return (
     <div className="page-container max-w-2xl">
@@ -91,29 +87,11 @@ export default function RequestsPage() {
       <div className="mb-8">
         <p className="section-label mb-1">Inbox</p>
         <h1 className="text-2xl font-black text-slate-900">Interview Requests</h1>
-        {requests.length > 0 && (
-          <p className="text-sm text-slate-500 mt-1">
-            {requests.length} request{requests.length !== 1 ? 's' : ''}
-          </p>
-        )}
+        <p className="text-sm text-slate-500 mt-1">
+          {isEmployer ? 'Requests you've sent to talent' : 'Requests received from employers'}
+          {requests.length > 0 && ` · ${requests.length} total`}
+        </p>
       </div>
-
-      {/* Tabs — employer only */}
-      {isEmployer && (
-        <div className="flex gap-1.5 bg-slate-100 rounded-2xl p-1.5 mb-8">
-          {(['received', 'sent'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => handleTabChange(t)}
-              className={`flex-1 py-2.5 text-sm font-semibold rounded-xl transition-colors ${
-                tab === t ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-700'
-              }`}
-            >
-              {t === 'received' ? 'Received' : 'Sent'}
-            </button>
-          ))}
-        </div>
-      )}
 
       {/* Empty state */}
       {requests.length === 0 ? (
@@ -125,7 +103,7 @@ export default function RequestsPage() {
           </div>
           <p className="font-bold text-slate-800 mb-2 text-base">No requests yet</p>
           <p className="text-sm text-slate-500 leading-relaxed max-w-xs mx-auto">
-            {tab === 'received'
+            {isTalent
               ? 'When employers discover your profile, their requests will appear here.'
               : 'Browse talent and send interview requests to start your pipeline.'}
           </p>
@@ -140,7 +118,7 @@ export default function RequestsPage() {
             const talentName = profile?.user_profiles?.full_name ?? 'Talent'
             const employer = req.employer as unknown as UserProfile | undefined
             const companyName = employer?.company_name ?? employer?.full_name ?? 'Employer'
-            const displayName = tab === 'received' ? companyName : talentName
+            const displayName = isTalent ? companyName : talentName
             const isPending = req.status === 'pending'
 
             return (
@@ -193,7 +171,7 @@ export default function RequestsPage() {
                       >
                         View Profile
                       </Link>
-                      {tab === 'received' && isPending && (
+                      {isTalent && isPending && (
                         <>
                           <button
                             onClick={() => updateStatus(req.id, 'declined')}

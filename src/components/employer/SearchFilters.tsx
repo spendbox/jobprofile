@@ -165,9 +165,9 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
 
       {/* Mobile drawer */}
       {isOpen && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
+        <div className="md:hidden fixed inset-0 z-[70] flex">
           <div className="absolute inset-0 bg-black/40" onClick={onClose} />
-          <div className="relative ml-auto w-80 max-w-full bg-white h-full overflow-y-auto p-5">
+          <div className="relative ml-auto w-80 max-w-full bg-white h-full overflow-y-auto p-5 pb-24">
             {panelContent}
             <button className="btn-primary w-full mt-6" onClick={onClose}>
               Apply Filters
