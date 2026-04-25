@@ -60,9 +60,12 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
     const file = e.target.files?.[0]
     if (!file) return
     setUploadingCv(true)
+    setError('')
     const path = `${userId}/${Date.now()}_${file.name}`
     const { error: uploadError } = await supabase.storage.from('cvs').upload(path, file, { upsert: true })
-    if (!uploadError) {
+    if (uploadError) {
+      setError(`CV upload failed: ${uploadError.message}`)
+    } else {
       const { data } = supabase.storage.from('cvs').getPublicUrl(path)
       set('cv_url', data.publicUrl)
     }

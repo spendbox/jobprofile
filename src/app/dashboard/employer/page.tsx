@@ -25,7 +25,19 @@ export default function EmployerDashboard() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) { router.push('/auth/login'); return }
 
-      const { data: up } = await supabase.from('user_profiles').select('*').eq('id', authUser.id).single()
+      let { data: up } = await supabase.from('user_profiles').select('*').eq('id', authUser.id).single()
+
+      if (!up && authUser.user_metadata?.user_role) {
+        const meta = authUser.user_metadata
+        const { data: created } = await supabase.from('user_profiles').insert({
+          id: authUser.id,
+          full_name: meta.full_name ?? authUser.email ?? 'User',
+          user_role: meta.user_role ?? 'employer',
+          company_name: meta.company_name ?? null,
+        }).select().single()
+        up = created
+      }
+
       if (up) {
         if (up.user_role === 'talent') { router.push('/dashboard/talent'); return }
         setUser(up as UserProfile)

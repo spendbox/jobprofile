@@ -31,10 +31,22 @@ export default function TalentDashboard() {
       const { data: { user: authUser } } = await supabase.auth.getUser()
       if (!authUser) { router.push('/auth/login'); return }
 
-      const [{ data: up }, { data: profileData }] = await Promise.all([
+      let [{ data: up }, { data: profileData }] = await Promise.all([
         supabase.from('user_profiles').select('*').eq('id', authUser.id).single(),
         supabase.from('profiles').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }),
       ])
+
+      // Recover: trigger may not have fired for users who signed up before tables existed
+      if (!up && authUser.user_metadata?.user_role) {
+        const meta = authUser.user_metadata
+        const { data: created } = await supabase.from('user_profiles').insert({
+          id: authUser.id,
+          full_name: meta.full_name ?? authUser.email ?? 'User',
+          user_role: meta.user_role ?? 'talent',
+          company_name: meta.company_name ?? null,
+        }).select().single()
+        up = created
+      }
 
       if (up) {
         if (up.user_role === 'employer') { router.push('/dashboard/employer'); return }
