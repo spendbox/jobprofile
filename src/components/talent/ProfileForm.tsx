@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { TIMEZONES } from '@/types'
@@ -27,6 +27,11 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   const [error, setError] = useState('')
   const [skillInput, setSkillInput] = useState('')
   const [uploadingCv, setUploadingCv] = useState(false)
+  const errorRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (error) errorRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+  }, [error])
 
   const [form, setForm] = useState({
     role_title: existing?.role_title ?? '',
@@ -100,13 +105,13 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
         .from('profiles')
         .update(payload)
         .eq('id', existing.id)
-        .select('*, user_profiles(*)')
+        .select('*')
         .single())
     } else {
       ;({ data, error: dbError } = await supabase
         .from('profiles')
         .insert(payload)
-        .select('*, user_profiles(*)')
+        .select('*')
         .single())
     }
 
@@ -118,7 +123,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   return (
     <form onSubmit={handleSubmit} className="space-y-5">
       {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
+        <div ref={errorRef} className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">
           {error}
         </div>
       )}
