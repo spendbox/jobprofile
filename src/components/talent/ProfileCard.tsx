@@ -37,8 +37,7 @@ export function ProfileCard({
         <div className="flex items-start gap-3">
           <Avatar name={name} size="md" src={profile.user_profiles?.avatar_url} />
           <div className="flex-1 min-w-0">
-            <h3 className="font-bold text-slate-900 truncate">{name}</h3>
-            <p className="text-sm text-indigo-600 font-semibold truncate mt-0.5">{profile.role_title}</p>
+            <h3 className="font-bold text-slate-900 truncate">{profile.role_title}</h3>
             {(profile.location || profile.timezone) && (
               <p className="text-xs text-slate-500 mt-1 truncate">
                 {[profile.location, profile.timezone].filter(Boolean).join(' · ')}
@@ -104,7 +103,7 @@ export function ProfileCard({
                   : 'btn-primary'
               }`}
             >
-              {hasRequested ? 'Requested' : 'Request Interview'}
+              {hasRequested ? 'Requested' : 'Interview'}
             </button>
           )}
         </div>

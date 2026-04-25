@@ -106,7 +106,7 @@ export default function CVManagementPage() {
 
   return (
     <div className="page-container max-w-2xl">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
           <Link href="/dashboard/talent" className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 mb-1">
             <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -117,9 +117,9 @@ export default function CVManagementPage() {
           <h1 className="text-xl font-bold text-slate-900">My CVs</h1>
           <p className="text-sm text-slate-500 mt-0.5">Upload and manage your CVs to attach to role profiles.</p>
         </div>
-        <div>
+        <div className="flex-shrink-0">
           <input ref={fileRef} type="file" accept=".pdf,.doc,.docx" className="hidden" onChange={handleUpload} />
-          <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-primary">
+          <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-primary w-full sm:w-auto">
             {uploading ? `Uploading… ${progress ?? 0}%` : 'Upload CV'}
           </button>
         </div>
