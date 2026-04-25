@@ -5,12 +5,13 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
 import { ProfileForm } from '@/components/talent/ProfileForm'
 import { Avatar } from '@/components/ui/Avatar'
 import { Badge } from '@/components/ui/Badge'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { formatSalary, availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
-import type { TalentProfile, UserProfile, AvailabilityStatus } from '@/types'
+import type { TalentProfile, AvailabilityStatus } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 
 type ModalState = { type: 'create' } | { type: 'edit'; profile: TalentProfile } | null
@@ -18,8 +19,8 @@ type ModalState = { type: 'create' } | { type: 'edit'; profile: TalentProfile } 
 export default function TalentDashboard() {
   const router = useRouter()
   const supabase = createClient()
+  const { userProfile, loadingAuth } = useAuth()
 
-  const [user, setUser] = useState<UserProfile | null>(null)
   const [profiles, setProfiles] = useState<TalentProfile[]>([])
   const [requestCounts, setRequestCounts] = useState<Record<string, number>>({})
   const [modal, setModal] = useState<ModalState>(null)
@@ -27,42 +28,25 @@ export default function TalentDashboard() {
   const [deleteId, setDeleteId] = useState<string | null>(null)
 
   useEffect(() => {
+    if (loadingAuth) return
+    if (!userProfile) { router.push('/auth/login'); return }
+    if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
+
     const load = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.push('/auth/login'); return }
-
-      let [{ data: up }, { data: profileData }] = await Promise.all([
-        supabase.from('user_profiles').select('*').eq('id', authUser.id).single(),
-        supabase.from('profiles').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false }),
-      ])
-
-      // Recover: trigger may not have fired for users who signed up before tables existed
-      if (!up && authUser.user_metadata?.user_role) {
-        const meta = authUser.user_metadata
-        const { data: created } = await supabase.from('user_profiles').insert({
-          id: authUser.id,
-          full_name: meta.full_name ?? authUser.email ?? 'User',
-          user_role: meta.user_role ?? 'talent',
-          company_name: meta.company_name ?? null,
-        }).select().single()
-        up = created
-      }
-
-      if (up) {
-        if (up.user_role === 'employer') { router.push('/dashboard/employer'); return }
-        setUser(up as UserProfile)
-      }
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userProfile.id)
+        .order('created_at', { ascending: false })
 
       if (profileData) {
         setProfiles(profileData as TalentProfile[])
-
         const ids = profileData.map((p) => p.id)
         if (ids.length > 0) {
           const { data: reqData } = await supabase
             .from('interview_requests')
             .select('profile_id')
             .in('profile_id', ids)
-
           const counts: Record<string, number> = {}
           reqData?.forEach((r) => { counts[r.profile_id] = (counts[r.profile_id] ?? 0) + 1 })
           setRequestCounts(counts)
@@ -71,7 +55,7 @@ export default function TalentDashboard() {
       setLoading(false)
     }
     load()
-  }, [])
+  }, [userProfile, loadingAuth, router, supabase])
 
   const handleSaved = (saved: TalentProfile) => {
     setProfiles((prev) => {
@@ -113,10 +97,10 @@ export default function TalentDashboard() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
-          {user && <Avatar name={user.full_name} size="md" src={user.avatar_url} />}
+          {userProfile && <Avatar name={userProfile.full_name} size="md" src={userProfile.avatar_url} />}
           <div>
             <h1 className="text-lg font-bold text-slate-900">My Profiles</h1>
-            <p className="text-sm text-slate-500">{user?.full_name}</p>
+            <p className="text-sm text-slate-500">{userProfile?.full_name}</p>
           </div>
         </div>
         <button onClick={() => setModal({ type: 'create' })} className="btn-primary">
@@ -244,7 +228,7 @@ export default function TalentDashboard() {
       )}
 
       {/* Modal */}
-      {modal && user && (
+      {modal && userProfile && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
             <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white">
@@ -259,7 +243,7 @@ export default function TalentDashboard() {
             </div>
             <div className="p-6">
               <ProfileForm
-                userId={user.id}
+                userId={userProfile.id}
                 existing={modal.type === 'edit' ? modal.profile : undefined}
                 onSaved={handleSaved}
                 onCancel={() => setModal(null)}

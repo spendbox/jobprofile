@@ -2,9 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import { createClient } from '@/lib/supabase/client'
-import type { UserProfile } from '@/types'
+import { useAuth } from '@/contexts/AuthContext'
 
 const SearchIcon = () => (
   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -29,24 +27,11 @@ const UserIcon = () => (
 
 export function BottomNav() {
   const pathname = usePathname()
-  const [user, setUser] = useState<UserProfile | null>(null)
-  const supabase = createClient()
+  const { userProfile } = useAuth()
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data } = await supabase.from('user_profiles').select('*').eq('id', authUser.id).single()
-      if (data) setUser(data as UserProfile)
-    }
-    fetchUser()
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => fetchUser())
-    return () => subscription.unsubscribe()
-  }, [])
+  if (pathname.startsWith('/auth') || !userProfile) return null
 
-  if (pathname.startsWith('/auth') || !user) return null
-
-  const dashboardHref = user.user_role === 'employer' ? '/dashboard/employer' : '/dashboard/talent'
+  const dashboardHref = userProfile.user_role === 'employer' ? '/dashboard/employer' : '/dashboard/talent'
 
   const links = [
     { href: '/', label: 'Home', icon: <HomeIcon /> },
@@ -59,16 +44,13 @@ export function BottomNav() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 safe-area-bottom">
       <div className="flex items-stretch h-16">
         {links.map(({ href, label, icon }) => {
-          const isActive =
-            href === '/' ? pathname === '/' : pathname.startsWith(href)
+          const isActive = href === '/' ? pathname === '/' : pathname.startsWith(href)
           return (
             <Link
               key={href}
               href={href}
               className={`flex-1 flex flex-col items-center justify-center gap-0.5 text-[10px] font-medium transition-colors ${
-                isActive
-                  ? 'text-indigo-600'
-                  : 'text-slate-500 hover:text-slate-700'
+                isActive ? 'text-indigo-600' : 'text-slate-500 hover:text-slate-700'
               }`}
             >
               {icon}

@@ -3,71 +3,65 @@
 export const dynamic = 'force-dynamic'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
+import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
-import { timeAgo, formatSalary } from '@/lib/utils'
+import { timeAgo } from '@/lib/utils'
 import type { InterviewRequest, UserProfile } from '@/types'
 import { STAGE_LABELS } from '@/types'
 
 export default function RequestsPage() {
-  const router = useRouter()
   const supabase = createClient()
+  const { userProfile, loadingAuth } = useAuth()
 
-  const [user, setUser] = useState<UserProfile | null>(null)
   const [requests, setRequests] = useState<InterviewRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [tab, setTab] = useState<'received' | 'sent'>('received')
 
-  useEffect(() => {
-    const load = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) { router.push('/auth/login'); return }
+  const loadRequests = async (role: string, currentTab: string) => {
+    if (!userProfile) return
+    setLoading(true)
 
-      const { data: up } = await supabase.from('user_profiles').select('*').eq('id', authUser.id).single()
-      if (up) setUser(up as UserProfile)
-
-      const defaultTab = up?.user_role === 'employer' ? 'sent' : 'received'
-      setTab(defaultTab)
-
-      await loadRequests(authUser.id, up?.user_role ?? 'talent', defaultTab)
-      setLoading(false)
-    }
-    load()
-  }, [])
-
-  const loadRequests = async (userId: string, role: string, currentTab: string) => {
     if (role === 'talent' || currentTab === 'received') {
-      // Get profile IDs owned by this user
-      const { data: myProfiles } = await supabase.from('profiles').select('id').eq('user_id', userId)
+      const { data: myProfiles } = await supabase.from('profiles').select('id').eq('user_id', userProfile.id)
       const profileIds = myProfiles?.map((p) => p.id) ?? []
 
       if (profileIds.length > 0) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('interview_requests')
-          .select('*, profiles(*, user_profiles(*)), employer:user_profiles!interview_requests_employer_id_fkey(*)')
+          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), employer:user_profiles!ir_employer_user_profiles_fkey(*)')
           .in('profile_id', profileIds)
           .order('created_at', { ascending: false })
+        if (error) console.error('requests error', error)
         if (data) setRequests(data as InterviewRequest[])
+        else setRequests([])
       } else {
         setRequests([])
       }
     } else {
-      // Employer viewing sent requests
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('interview_requests')
-        .select('*, profiles(*, user_profiles(*))')
-        .eq('employer_id', userId)
+        .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
+        .eq('employer_id', userProfile.id)
         .order('created_at', { ascending: false })
+      if (error) console.error('requests error', error)
       if (data) setRequests(data as InterviewRequest[])
     }
+    setLoading(false)
   }
 
-  const handleTabChange = async (newTab: 'received' | 'sent') => {
+  useEffect(() => {
+    if (loadingAuth || !userProfile) return
+    const defaultTab = userProfile.user_role === 'employer' ? 'sent' : 'received'
+    setTab(defaultTab)
+    loadRequests(userProfile.user_role, defaultTab)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile, loadingAuth])
+
+  const handleTabChange = (newTab: 'received' | 'sent') => {
     setTab(newTab)
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (authUser && user) await loadRequests(authUser.id, user.user_role, newTab)
+    if (userProfile) loadRequests(userProfile.user_role, newTab)
   }
 
   const updateStatus = async (requestId: string, status: 'accepted' | 'declined') => {
@@ -80,7 +74,7 @@ export default function RequestsPage() {
     if (data) setRequests((prev) => prev.map((r) => (r.id === requestId ? { ...r, ...data } : r)))
   }
 
-  if (loading) {
+  if (loadingAuth || loading) {
     return (
       <div className="page-container flex items-center justify-center min-h-64">
         <div className="text-sm text-slate-500">Loading…</div>
@@ -88,7 +82,7 @@ export default function RequestsPage() {
     )
   }
 
-  const isEmployer = user?.user_role === 'employer'
+  const isEmployer = userProfile?.user_role === 'employer'
 
   return (
     <div className="page-container max-w-2xl">
@@ -124,9 +118,7 @@ export default function RequestsPage() {
               : 'Browse talent and send interview requests to start your pipeline.'}
           </p>
           {isEmployer && (
-            <Link href="/search" className="btn-primary mx-auto mt-4 inline-flex">
-              Find Talent
-            </Link>
+            <Link href="/search" className="btn-primary mx-auto mt-4 inline-flex">Find Talent</Link>
           )}
         </div>
       ) : (
@@ -134,9 +126,8 @@ export default function RequestsPage() {
           {requests.map((req) => {
             const profile = req.profiles
             const talentName = profile?.user_profiles?.full_name ?? 'Talent'
-            const companyName = (req.employer as unknown as UserProfile)?.company_name
-              ?? (req.employer as unknown as UserProfile)?.full_name
-              ?? 'Employer'
+            const employer = req.employer as unknown as UserProfile | undefined
+            const companyName = employer?.company_name ?? employer?.full_name ?? 'Employer'
 
             return (
               <div key={req.id} className="card p-4">
@@ -148,25 +139,15 @@ export default function RequestsPage() {
                         <p className="font-medium text-slate-900 text-sm">
                           {tab === 'received' ? companyName : talentName}
                         </p>
-                        <p className="text-xs text-indigo-600 font-medium">
-                          {profile?.role_title}
-                        </p>
+                        <p className="text-xs text-indigo-600 font-medium">{profile?.role_title}</p>
                       </div>
                       <div className="flex items-center gap-2 flex-shrink-0">
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                            req.status === 'accepted'
-                              ? 'bg-emerald-100 text-emerald-700'
-                              : req.status === 'declined'
-                              ? 'bg-red-100 text-red-700'
-                              : 'bg-amber-100 text-amber-700'
-                          }`}
-                        >
-                          {req.status}
-                        </span>
-                        <span className="text-xs text-slate-400">
-                          {STAGE_LABELS[req.stage]}
-                        </span>
+                        <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                          req.status === 'accepted' ? 'bg-emerald-100 text-emerald-700'
+                            : req.status === 'declined' ? 'bg-red-100 text-red-700'
+                            : 'bg-amber-100 text-amber-700'
+                        }`}>{req.status}</span>
+                        <span className="text-xs text-slate-400">{STAGE_LABELS[req.stage]}</span>
                       </div>
                     </div>
 
@@ -179,25 +160,15 @@ export default function RequestsPage() {
                     <div className="flex items-center justify-between mt-3">
                       <p className="text-xs text-slate-400">{timeAgo(req.created_at)}</p>
                       <div className="flex items-center gap-2">
-                        <Link
-                          href={`/profile/${req.profile_id}`}
-                          className="text-xs text-indigo-600 hover:text-indigo-700 font-medium"
-                        >
+                        <Link href={`/profile/${req.profile_id}`} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
                           View Profile
                         </Link>
-
                         {tab === 'received' && req.status === 'pending' && (
                           <>
-                            <button
-                              onClick={() => updateStatus(req.id, 'declined')}
-                              className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors"
-                            >
+                            <button onClick={() => updateStatus(req.id, 'declined')} className="text-xs px-3 py-1.5 rounded-lg border border-slate-200 text-slate-600 hover:bg-slate-50 font-medium transition-colors">
                               Decline
                             </button>
-                            <button
-                              onClick={() => updateStatus(req.id, 'accepted')}
-                              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 font-medium transition-colors"
-                            >
+                            <button onClick={() => updateStatus(req.id, 'accepted')} className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 text-white hover:bg-emerald-700 font-medium transition-colors">
                               Accept
                             </button>
                           </>

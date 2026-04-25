@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import { Navbar } from '@/components/layout/Navbar'
 import { BottomNav } from '@/components/layout/BottomNav'
+import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
   title: 'TalentDeck — Employers discover you',
@@ -23,9 +24,11 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
-        <Navbar />
-        <main className="min-h-screen">{children}</main>
-        <BottomNav />
+        <AuthProvider>
+          <Navbar />
+          <main className="min-h-screen">{children}</main>
+          <BottomNav />
+        </AuthProvider>
       </body>
     </html>
   )

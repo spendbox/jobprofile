@@ -1,52 +1,21 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
-import { usePathname, useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
-import type { UserProfile } from '@/types'
+import { useState } from 'react'
+import { usePathname } from 'next/navigation'
+import { useAuth } from '@/contexts/AuthContext'
 import { getInitials } from '@/lib/utils'
 
 export function Navbar() {
-  const [user, setUser] = useState<UserProfile | null>(null)
+  const { userProfile, signOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
   const pathname = usePathname()
-  const router = useRouter()
-  const supabase = createClient()
 
   const isAuthPage = pathname.startsWith('/auth')
 
-  useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user: authUser } } = await supabase.auth.getUser()
-      if (!authUser) return
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', authUser.id)
-        .single()
-      if (data) setUser(data as UserProfile)
-    }
-    fetchUser()
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(() => {
-      fetchUser()
-    })
-    return () => subscription.unsubscribe()
-  }, [])
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut()
-    setUser(null)
-    router.push('/')
-    router.refresh()
-  }
-
-  const dashboardHref = user
-    ? user.user_role === 'employer'
-      ? '/dashboard/employer'
-      : '/dashboard/talent'
-    : '/auth/login'
+  const dashboardHref = userProfile?.user_role === 'employer'
+    ? '/dashboard/employer'
+    : '/dashboard/talent'
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
@@ -62,50 +31,34 @@ export function Navbar() {
 
         {!isAuthPage && (
           <nav className="flex items-center gap-2">
-            {user ? (
+            {userProfile ? (
               <>
-                <Link
-                  href="/search"
-                  className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
-                >
+                <Link href="/search" className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
                   Discover
                 </Link>
-                <Link
-                  href={dashboardHref}
-                  className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
-                >
+                <Link href={dashboardHref} className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
                   Dashboard
                 </Link>
-                <Link
-                  href="/requests"
-                  className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors"
-                >
+                <Link href="/requests" className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
                   Requests
                 </Link>
                 <div className="relative">
-                  <button
-                    onClick={() => setMenuOpen(!menuOpen)}
-                    className="flex items-center gap-2 ml-1"
-                  >
+                  <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 ml-1">
                     <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
-                      {getInitials(user.full_name)}
+                      {getInitials(userProfile.full_name)}
                     </div>
                   </button>
                   {menuOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-xl border border-slate-200 shadow-lg overflow-hidden z-50">
                       <div className="px-4 py-3 border-b border-slate-100">
-                        <p className="text-sm font-semibold text-slate-900 truncate">{user.full_name}</p>
-                        <p className="text-xs text-slate-500 capitalize">{user.user_role}</p>
+                        <p className="text-sm font-semibold text-slate-900 truncate">{userProfile.full_name}</p>
+                        <p className="text-xs text-slate-500 capitalize">{userProfile.user_role}</p>
                       </div>
-                      <Link
-                        href={dashboardHref}
-                        className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
-                        onClick={() => setMenuOpen(false)}
-                      >
+                      <Link href={dashboardHref} className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setMenuOpen(false)}>
                         Dashboard
                       </Link>
                       <button
-                        onClick={() => { handleSignOut(); setMenuOpen(false) }}
+                        onClick={() => { setMenuOpen(false); signOut() }}
                         className="w-full text-left px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"
                       >
                         Sign out
@@ -116,12 +69,8 @@ export function Navbar() {
               </>
             ) : (
               <>
-                <Link href="/auth/login" className="btn-ghost text-sm py-2 px-3">
-                  Sign in
-                </Link>
-                <Link href="/auth/signup" className="btn-primary text-sm py-2 px-4">
-                  Get started
-                </Link>
+                <Link href="/auth/login" className="btn-ghost text-sm py-2 px-3">Sign in</Link>
+                <Link href="/auth/signup" className="btn-primary text-sm py-2 px-4">Get started</Link>
               </>
             )}
           </nav>
