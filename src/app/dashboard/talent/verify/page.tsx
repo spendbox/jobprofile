@@ -133,6 +133,7 @@ export default function VerifyPage() {
     if (!streamRef.current) return
     chunksRef.current = []
     setCountdown(5)
+    setPhrase(randomPhrase())
     setRecordState('recording')
 
     const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus')
@@ -400,7 +401,7 @@ export default function VerifyPage() {
               </p>
             </div>
 
-            {recordState !== 'cam-error' && (
+            {recordState !== 'cam-error' && recordState !== 'idle' && (
               <div className="bg-indigo-50 border border-indigo-100 rounded-2xl px-4 py-4 text-center">
                 <p className="text-xs text-indigo-500 font-semibold uppercase tracking-widest mb-2">Say this phrase</p>
                 <p className="text-2xl font-black text-indigo-700 tracking-wide leading-snug">{phrase}</p>

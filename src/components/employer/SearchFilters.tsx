@@ -50,12 +50,6 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
   const removeSkill = (skill: string) =>
     update({ skills: (filters.skills ?? []).filter((s) => s !== skill) })
 
-  const toggleAvailability = (v: 'available' | 'open' | 'not_looking') => {
-    const current = filters.availability ?? []
-    const next = current.includes(v) ? current.filter((a) => a !== v) : [...current, v]
-    update({ availability: next })
-  }
-
   const clear = () =>
     onChange({})
 
@@ -138,27 +132,6 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
             ))}
           </div>
         )}
-      </div>
-
-      <div>
-        <label className="label text-xs uppercase tracking-wide text-slate-500">Availability</label>
-        {(
-          [
-            { value: 'available', label: 'Available Now' },
-            { value: 'open', label: 'Open to Offers' },
-            { value: 'not_looking', label: 'Not Looking' },
-          ] as const
-        ).map(({ value, label }) => (
-          <label key={value} className="flex items-center gap-2 py-1.5 cursor-pointer">
-            <input
-              type="checkbox"
-              className="accent-indigo-600 w-4 h-4"
-              checked={(filters.availability ?? []).includes(value)}
-              onChange={() => toggleAvailability(value)}
-            />
-            <span className="text-sm text-slate-700">{label}</span>
-          </label>
-        ))}
       </div>
 
       <div>

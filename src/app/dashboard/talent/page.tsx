@@ -182,9 +182,7 @@ export default function TalentDashboard() {
             <div key={profile.id} className="card overflow-hidden">
               {/* Availability accent stripe */}
               <div className={`h-1 ${
-                profile.availability_status === 'available' ? 'bg-emerald-400'
-                : profile.availability_status === 'open' ? 'bg-amber-400'
-                : 'bg-slate-300'
+                profile.availability_status === 'available' || profile.availability_status === 'open' ? 'bg-emerald-400' : 'bg-slate-300'
               }`} />
 
               <div className="p-5 sm:p-6">
@@ -259,20 +257,19 @@ export default function TalentDashboard() {
                 {/* Availability toggle */}
                 <div className="mt-5 pt-5 border-t border-slate-100">
                   <p className="section-label mb-3">Update availability</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['available', 'open', 'not_looking'] as AvailabilityStatus[]).map((s) => (
+                  <div className="flex gap-2">
+                    {(['available', 'not_looking'] as AvailabilityStatus[]).map((s) => (
                       <button
                         key={s}
                         onClick={() => toggleAvailability(profile, s)}
-                        className={`text-xs px-2 py-2.5 rounded-xl border font-semibold transition-all text-center leading-snug ${
-                          profile.availability_status === s
+                        className={`flex-1 text-xs px-3 py-2.5 rounded-xl border font-semibold transition-all text-center ${
+                          (profile.availability_status === s || (s === 'available' && profile.availability_status === 'open'))
                             ? s === 'available' ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                              : s === 'open' ? 'bg-amber-100 text-amber-700 border-amber-300'
                               : 'bg-slate-100 text-slate-600 border-slate-300'
                             : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                         }`}
                       >
-                        {AVAILABILITY_LABELS[s]}
+                        {s === 'available' ? 'Available' : 'Not Available'}
                       </button>
                     ))}
                   </div>
