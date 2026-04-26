@@ -2,6 +2,7 @@ export type UserRole = 'talent' | 'employer'
 export type AvailabilityStatus = 'available' | 'open' | 'not_looking'
 export type RequestStatus = 'pending' | 'accepted' | 'declined'
 export type RequestStage = 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
+export type PortfolioItemType = 'image' | 'document' | 'link' | 'video'
 
 export interface UserProfile {
   id: string
@@ -12,6 +13,38 @@ export interface UserProfile {
   is_verified?: boolean
   verified_at?: string
   created_at: string
+}
+
+export interface PortfolioItem {
+  id: string
+  user_id: string
+  label: string
+  type: PortfolioItemType
+  file_path?: string
+  file_url?: string
+  external_url?: string
+  created_at: string
+}
+
+export interface CVExperience {
+  title: string
+  company: string
+  period: string
+  bullets: string[]
+}
+
+export interface CVEducation {
+  degree: string
+  school: string
+  period: string
+}
+
+export interface CVData {
+  summary?: string
+  experience: CVExperience[]
+  education: CVEducation[]
+  certifications: string[]
+  languages: string[]
 }
 
 export interface TestQuestion {
@@ -53,9 +86,9 @@ export interface TalentProfile {
   years_experience: number
   timezone?: string
   availability_status: AvailabilityStatus
-  portfolio_url?: string
-  cv_url?: string
-  intro_video_url?: string
+  cv_data?: CVData
+  cv_file_path?: string
+  portfolio_item_ids: string[]
   profile_views: number
   times_shown: number
   availability_updated_at: string
