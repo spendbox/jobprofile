@@ -21,17 +21,15 @@ Rules:
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
 
-// Wraps worker_threads.Worker in the browser Worker interface that pdfjs-dist types expect.
-// addEventListener/removeEventListener bridge to Node's EventEmitter .on/.off.
-function makePdfjsWorker(workerPath: string): { port: Worker; terminate: () => Promise<number> } {
+// Bridges worker_threads.Worker (Node EventEmitter) to the browser Worker interface
+// that pdfjs-dist's TypeScript types expect (addEventListener / removeEventListener).
+function makeNodeWorker(workerPath: string): { port: Worker; terminate: () => Promise<number> } {
   const nodeWorker = new NodeWorker(workerPath)
   const listeners = new Map<string, Set<(e: MessageEvent) => void>>()
 
-  const emit = (type: string, data: unknown) => {
-    listeners.get(type)?.forEach((fn) => fn({ data } as MessageEvent))
-  }
-
-  nodeWorker.on('message', (data) => emit('message', data))
+  nodeWorker.on('message', (data) => {
+    listeners.get('message')?.forEach((fn) => fn({ data } as MessageEvent))
+  })
 
   const port = {
     postMessage(msg: unknown, transfer?: unknown[]) {
@@ -57,33 +55,10 @@ function makePdfjsWorker(workerPath: string): { port: Worker; terminate: () => P
 }
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // pdfjs-dist reads DOMMatrix/ImageData/Path2D at module init — polyfill for Node/Lambda
-  if (typeof globalThis.DOMMatrix === 'undefined') {
-    class _DOMMatrix {
-      a=1;b=0;c=0;d=1;e=0;f=0
-      constructor(init?: string | number[]) {
-        if (Array.isArray(init) && init.length === 6) {
-          [this.a, this.b, this.c, this.d, this.e, this.f] = init as [number,number,number,number,number,number]
-        }
-      }
-      multiply() { return new _DOMMatrix() }
-      inverse() { return new _DOMMatrix() }
-      translate() { return new _DOMMatrix() }
-      scale() { return new _DOMMatrix() }
-      rotate() { return new _DOMMatrix() }
-      transformPoint(p: unknown) { return p }
-    }
-    Object.assign(globalThis, {
-      DOMMatrix: _DOMMatrix,
-      ImageData: class { constructor(public width=1, public height=1) {} },
-      Path2D: class { moveTo() {} lineTo() {} closePath() {} },
-    })
-  }
-
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
   const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-  const { port, terminate } = makePdfjsWorker(workerPath)
+  const { port, terminate } = makeNodeWorker(workerPath)
   pdfjsLib.GlobalWorkerOptions.workerPort = port
 
   try {

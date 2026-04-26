@@ -34,10 +34,12 @@ export default function TalentDashboard() {
     if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
 
     const load = async () => {
-      setIsVerified(!!userProfile.is_verified)
+      const [{ data: upData }, { data: profileData }] = await Promise.all([
+        supabase.from('user_profiles').select('is_verified').eq('id', userProfile.id).single(),
+        supabase.from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false }),
+      ])
 
-      const { data: profileData } = await supabase
-        .from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false })
+      setIsVerified(!!upData?.is_verified)
 
       if (profileData) {
         setProfiles(profileData as TalentProfile[])
