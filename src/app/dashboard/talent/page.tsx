@@ -242,16 +242,6 @@ export default function TalentDashboard() {
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
                   <span>{profile.profile_views} views</span>
                   <span>{requestCounts[profile.id] ?? 0} requests</span>
-                  {profile.cv_url && (
-                    <a
-                      href={profile.cv_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-700 font-semibold"
-                    >
-                      View CV
-                    </a>
-                  )}
                 </div>
 
                 {/* Availability toggle */}
