@@ -123,15 +123,24 @@ export default function PortfolioPage() {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session) throw new Error('Not authenticated')
 
-        const ext = addFile.name.split('.').pop()
-        const path = `${userProfile.id}/${Date.now()}_${addFile.name}`
+        const ext = addFile.name.split('.').pop()?.toLowerCase() ?? ''
+        const mimeMap: Record<string, string> = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
+          webp: 'image/webp', gif: 'image/gif',
+          pdf: 'application/pdf',
+          doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }
+        const contentType = addFile.type || mimeMap[ext] || 'application/octet-stream'
+        const safeName = addFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
+        const path = `${userProfile.id}/${Date.now()}_${safeName}`
         const uploadUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/portfolio/${path}`
 
         await new Promise<void>((resolve, reject) => {
           const xhr = new XMLHttpRequest()
           xhr.open('POST', uploadUrl)
           xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
-          xhr.setRequestHeader('Content-Type', addFile.type || 'application/octet-stream')
+          xhr.setRequestHeader('Content-Type', contentType)
           xhr.setRequestHeader('x-upsert', 'true')
           xhr.upload.onprogress = (evt) => {
             if (evt.lengthComputable) setAddProgress(Math.round((evt.loaded / evt.total) * 100))

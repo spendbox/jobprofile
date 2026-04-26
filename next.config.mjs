@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // pdf2json and mammoth use Node.js native APIs — keep them out of the server bundle
+    serverComponentsExternalPackages: ['pdf2json', 'mammoth'],
+  },
   images: {
     remotePatterns: [
       {

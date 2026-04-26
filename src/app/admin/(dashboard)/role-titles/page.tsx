@@ -20,8 +20,15 @@ export default function AdminRoleTitlesPage() {
   useEffect(() => {
     fetch('/api/admin/role-titles')
       .then((r) => r.json())
-      .then((d) => { setTitles(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .then((d) => {
+        if (Array.isArray(d)) {
+          setTitles(d)
+        } else {
+          setError(d?.error ?? 'Failed to load titles — run migration 20260426000003 in Supabase SQL Editor')
+        }
+        setLoading(false)
+      })
+      .catch(() => { setError('Network error'); setLoading(false) })
   }, [])
 
   const handleAdd = async () => {
@@ -61,9 +68,13 @@ export default function AdminRoleTitlesPage() {
         <h1 className="text-2xl font-black text-white">Role Titles</h1>
         <p className="text-sm text-slate-400 mt-1">
           Manage the searchable list of job titles shown to talents when creating a profile.
-          {!loading && <span className="ml-1 text-slate-500">({titles.length} total)</span>}
+          {!loading && titles.length > 0 && <span className="ml-1 text-slate-500">({titles.length} total)</span>}
         </p>
       </div>
+
+      {error && titles.length === 0 && (
+        <div className="mb-6 bg-red-950 border border-red-800 rounded-xl px-4 py-3 text-sm text-red-300">{error}</div>
+      )}
 
       {/* Add form */}
       <div className="bg-slate-900 border border-slate-800 rounded-2xl p-5 mb-6">
