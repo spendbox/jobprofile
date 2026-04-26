@@ -48,10 +48,8 @@ export function ProfileCard({
                   </span>
                 )}
               </div>
-            {(profile.location || profile.timezone) && (
-              <p className="text-xs text-slate-500 mt-1 truncate">
-                {[profile.location, profile.timezone].filter(Boolean).join(' · ')}
-              </p>
+            {profile.timezone && (
+              <p className="text-xs text-slate-500 mt-1 truncate">{profile.timezone}</p>
             )}
           </div>
           <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full flex-shrink-0 ${availabilityColor(status)}`}>

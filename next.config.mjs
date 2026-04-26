@@ -1,5 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  experimental: {
+    // pdfjs-dist and mammoth must not be bundled — they use Node.js native APIs
+    serverComponentsExternalPackages: ['pdfjs-dist', 'mammoth'],
+  },
   images: {
     remotePatterns: [
       {

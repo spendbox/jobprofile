@@ -34,12 +34,10 @@ export default function TalentDashboard() {
     if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
 
     const load = async () => {
-      const [{ data: userProfileData }, { data: profileData }] = await Promise.all([
-        supabase.from('user_profiles').select('is_verified').eq('id', userProfile.id).single(),
-        supabase.from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false }),
-      ])
+      setIsVerified(!!userProfile.is_verified)
 
-      if (userProfileData?.is_verified) setIsVerified(true)
+      const { data: profileData } = await supabase
+        .from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false })
 
       if (profileData) {
         setProfiles(profileData as TalentProfile[])
@@ -103,16 +101,22 @@ export default function TalentDashboard() {
           {userProfile && <Avatar name={userProfile.full_name} size="lg" src={userProfile.avatar_url} />}
           <div>
             <p className="section-label mb-0.5">Talent Dashboard</p>
-            <h1 className="text-xl font-bold text-slate-900">{userProfile?.full_name}</h1>
+            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+              {userProfile?.full_name}
+              {isVerified && (
+                <span title="Verified" className="inline-flex items-center justify-center w-5 h-5 bg-indigo-600 rounded-full flex-shrink-0">
+                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                </span>
+              )}
+            </h1>
             <p className="text-sm text-slate-500 mt-0.5">Manage your role profiles</p>
           </div>
         </div>
         <div className="flex items-center gap-2 sm:flex-col sm:items-end gap-y-2">
           <Link href="/dashboard/talent/tests" className="btn-secondary text-sm">
             Tests
-          </Link>
-          <Link href="/dashboard/talent/cvs" className="btn-secondary text-sm">
-            Manage CVs
           </Link>
           <button onClick={() => setModal({ type: 'create' })} className="btn-primary">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -123,48 +127,35 @@ export default function TalentDashboard() {
         </div>
       </div>
 
-      {/* Verification banner */}
-      {userProfile && (
-        isVerified ? (
-          <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 mb-6">
-            <span className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
-              <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-            <div>
-              <p className="text-sm font-bold text-indigo-900">Verified Talent</p>
-              <p className="text-xs text-indigo-600 mt-0.5">Your account has been verified — a badge appears on your profile.</p>
-            </div>
+      {/* Unverified nudge */}
+      {userProfile && !isVerified && (
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-6">
+          <span className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+            </svg>
+          </span>
+          <div className="flex-1">
+            <p className="text-sm font-bold text-slate-700">Not yet verified</p>
+            <p className="text-xs text-slate-500 mt-0.5">Submit an ID document to get a verified badge on your profile.</p>
           </div>
-        ) : (
-          <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 mb-6">
-            <span className="w-7 h-7 bg-slate-200 rounded-full flex items-center justify-center flex-shrink-0">
-              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-              </svg>
-            </span>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-slate-700">Not yet verified</p>
-              <p className="text-xs text-slate-500 mt-0.5">Submit an ID document to get a verified badge on your profile.</p>
-            </div>
-            <Link href="/dashboard/talent/verify" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex-shrink-0">
-              Get Verified
-            </Link>
-          </div>
-        )
+          <Link href="/dashboard/talent/verify" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex-shrink-0">
+            Get Verified
+          </Link>
+        </div>
       )}
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 sm:gap-5 mb-10">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 mb-10">
         {[
           { label: 'Profiles', value: profiles.length },
           { label: 'Total Views', value: totalViews },
           { label: 'Requests', value: totalRequests },
         ].map(({ label, value }) => (
-          <div key={label} className="card p-5 sm:p-6 text-center">
-            <p className="text-3xl sm:text-4xl font-black text-slate-900">{value}</p>
-            <p className="section-label mt-2">{label}</p>
+          <div key={label} className="card px-5 py-4 sm:p-6 flex items-center justify-between sm:block sm:text-center">
+            <p className="section-label sm:hidden">{label}</p>
+            <p className="text-3xl sm:text-4xl font-black text-slate-900">{value.toLocaleString()}</p>
+            <p className="section-label mt-0 sm:mt-2 hidden sm:block">{label}</p>
           </div>
         ))}
       </div>
@@ -208,6 +199,18 @@ export default function TalentDashboard() {
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 -mt-1">
                     <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/profile/${profile.id}`
+                        navigator.clipboard.writeText(url).catch(() => {})
+                      }}
+                      className="btn-ghost p-2.5 rounded-xl"
+                      title="Copy public link"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                    </button>
+                    <button
                       onClick={() => setModal({ type: 'edit', profile })}
                       className="btn-ghost p-2.5 rounded-xl"
                       title="Edit"
@@ -247,27 +250,8 @@ export default function TalentDashboard() {
 
                 {/* Meta stats */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-                  {profile.location && (
-                    <span className="flex items-center gap-1">
-                      <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      {profile.location}
-                    </span>
-                  )}
                   <span>{profile.profile_views} views</span>
                   <span>{requestCounts[profile.id] ?? 0} requests</span>
-                  {profile.cv_url && (
-                    <a
-                      href={profile.cv_url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-indigo-600 hover:text-indigo-700 font-semibold"
-                    >
-                      View CV
-                    </a>
-                  )}
                 </div>
 
                 {/* Availability toggle */}
@@ -300,35 +284,21 @@ export default function TalentDashboard() {
         </div>
       )}
 
-      {/* Create / Edit modal */}
+      {/* Create / Edit modal — full screen */}
       {modal && userProfile && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white rounded-t-2xl">
-              <h2 className="font-bold text-slate-900">
-                {modal.type === 'create' ? 'Create Role Profile' : 'Edit Profile'}
-              </h2>
-              <button onClick={() => setModal(null)} className="text-slate-400 hover:text-slate-600 p-1">
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-            <div className="p-6">
-              <ProfileForm
-                userId={userProfile.id}
-                existing={modal.type === 'edit' ? modal.profile : undefined}
-                onSaved={handleSaved}
-                onCancel={() => setModal(null)}
-              />
-            </div>
-          </div>
+        <div className="fixed inset-0 z-[60] overflow-auto bg-white">
+          <ProfileForm
+            userId={userProfile.id}
+            existing={modal.type === 'edit' ? modal.profile : undefined}
+            onSaved={handleSaved}
+            onCancel={() => setModal(null)}
+          />
         </div>
       )}
 
       {/* Delete confirm */}
       {deleteId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl p-6 w-full max-w-sm">
             <h3 className="font-bold text-slate-900 mb-2">Delete profile?</h3>
             <p className="text-sm text-slate-500 mb-6 leading-relaxed">This will permanently remove the profile and all related data.</p>
