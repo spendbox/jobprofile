@@ -2,6 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
+import { Worker } from 'worker_threads'
+import path from 'path'
 
 const SYSTEM_PROMPT = `You are a CV/resume parser. Extract structured information and return ONLY valid JSON with this exact shape:
 {
@@ -20,7 +22,7 @@ Rules:
 - If a field has no data, use an empty array [] or empty string "".`
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // pdfjs-dist legacy build reads DOMMatrix/ImageData/Path2D at module init — polyfill for Node/Lambda
+  // pdfjs-dist reads DOMMatrix/ImageData/Path2D at module init — polyfill for Node/Lambda
   if (typeof globalThis.DOMMatrix === 'undefined') {
     class _DOMMatrix {
       a=1;b=0;c=0;d=1;e=0;f=0
@@ -43,29 +45,35 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
     })
   }
 
-  // Dynamic import keeps pdfjs-dist out of the main server bundle
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
-  // Use fake worker — no separate worker thread needed for text extraction
-  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+  // pdfjs-dist v5 requires a real worker in Node.js — fake-worker mode was removed.
+  // Use worker_threads.Worker pointing at the bundled worker script.
+  const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
+  const worker = new Worker(workerPath)
+  pdfjsLib.GlobalWorkerOptions.workerPort = worker
 
-  const doc = await pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: true,
-    disableFontFace: true,
-  }).promise
+  try {
+    const doc = await pdfjsLib.getDocument({
+      data: new Uint8Array(buffer),
+      useSystemFonts: true,
+      disableFontFace: true,
+    }).promise
 
-  const pages: string[] = []
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p)
-    const content = await page.getTextContent()
-    const text = content.items
-      .map((item) => ('str' in item ? (item as { str: string }).str : ''))
-      .join(' ')
-    pages.push(text)
+    const pages: string[] = []
+    for (let p = 1; p <= doc.numPages; p++) {
+      const page = await doc.getPage(p)
+      const content = await page.getTextContent()
+      pages.push(
+        content.items
+          .map((item) => ('str' in item ? (item as { str: string }).str : ''))
+          .join(' ')
+      )
+    }
+    return pages.join('\n')
+  } finally {
+    await worker.terminate()
   }
-
-  return pages.join('\n')
 }
 
 export async function POST(req: NextRequest) {
