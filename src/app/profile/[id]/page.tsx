@@ -8,7 +8,7 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
-import { formatSalary, availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
+import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
 import type { TalentProfile, UserProfile } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 
@@ -192,16 +192,12 @@ export default function ProfilePage() {
           </div>
 
           {/* Stats strip */}
-          <div className="grid grid-cols-3 gap-4 pt-6 border-t border-slate-100">
+          <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-100">
             <div className="text-center">
               <p className="text-xl font-black text-slate-900">{profile.years_experience}</p>
               <p className="text-xs text-slate-400 mt-0.5 font-medium">Years exp.</p>
             </div>
-            <div className="text-center border-x border-slate-100">
-              <p className="text-xl font-black text-slate-900">{formatSalary(profile.salary_expectation)}</p>
-              <p className="text-xs text-slate-400 mt-0.5 font-medium">Per month</p>
-            </div>
-            <div className="text-center">
+            <div className="text-center border-l border-slate-100">
               <p className="text-xl font-black text-slate-900">{profile.profile_views}</p>
               <p className="text-xs text-slate-400 mt-0.5 font-medium">Profile views</p>
             </div>

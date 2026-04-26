@@ -50,7 +50,6 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
     bio: existing?.bio ?? '',
     skills: existing?.skills ?? ([] as string[]),
     years_experience: existing?.years_experience ?? 0,
-    salary_expectation: existing?.salary_expectation ?? '',
     location: existing?.location ?? '',
     timezone: existing?.timezone ?? 'UTC',
     availability_status: (existing?.availability_status ?? 'open') as AvailabilityStatus,
@@ -139,7 +138,6 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       bio: form.bio.trim() || null,
       skills: form.skills,
       years_experience: Number(form.years_experience),
-      salary_expectation: form.salary_expectation ? Number(form.salary_expectation) : null,
       location: form.location.trim() || null,
       timezone: form.timezone || null,
       availability_status: form.availability_status,
@@ -230,29 +228,16 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
         )}
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <label className="label">Years of Experience</label>
-          <input
-            type="number"
-            min={0}
-            max={50}
-            className="input-base"
-            value={form.years_experience}
-            onChange={(e) => set('years_experience', e.target.value)}
-          />
-        </div>
-        <div>
-          <label className="label">Monthly Salary (USD)</label>
-          <input
-            type="number"
-            min={0}
-            className="input-base"
-            placeholder="e.g. 3000"
-            value={form.salary_expectation}
-            onChange={(e) => set('salary_expectation', e.target.value)}
-          />
-        </div>
+      <div>
+        <label className="label">Years of Experience</label>
+        <input
+          type="number"
+          min={0}
+          max={50}
+          className="input-base"
+          value={form.years_experience}
+          onChange={(e) => set('years_experience', e.target.value)}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-4">

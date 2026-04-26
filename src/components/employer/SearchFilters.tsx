@@ -123,28 +123,6 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
       </div>
 
       <div>
-        <label className="label text-xs uppercase tracking-wide text-slate-500">Monthly Salary (USD)</label>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            min={0}
-            className="input-base text-sm"
-            placeholder="Min"
-            value={filters.min_salary ?? ''}
-            onChange={(e) => update({ min_salary: e.target.value ? Number(e.target.value) : undefined })}
-          />
-          <input
-            type="number"
-            min={0}
-            className="input-base text-sm"
-            placeholder="Max"
-            value={filters.max_salary ?? ''}
-            onChange={(e) => update({ max_salary: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </div>
-      </div>
-
-      <div>
         <label className="label text-xs uppercase tracking-wide text-slate-500">Location</label>
         <input
           className="input-base text-sm"

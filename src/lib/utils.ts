@@ -4,15 +4,6 @@ export function cn(...classes: (string | undefined | false | null)[]) {
   return classes.filter(Boolean).join(' ')
 }
 
-export function formatSalary(amount?: number): string {
-  if (!amount) return 'Negotiable'
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    maximumFractionDigits: 0,
-  }).format(amount) + '/mo'
-}
-
 export function getInitials(name: string): string {
   return name
     .split(' ')

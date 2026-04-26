@@ -48,11 +48,6 @@ export default function SearchPage() {
       query = query.gte('years_experience', currentFilters.min_experience)
     if (currentFilters.max_experience !== undefined)
       query = query.lte('years_experience', currentFilters.max_experience)
-    if (currentFilters.min_salary !== undefined)
-      query = query.gte('salary_expectation', currentFilters.min_salary)
-    if (currentFilters.max_salary !== undefined)
-      query = query.lte('salary_expectation', currentFilters.max_salary)
-
     if (currentFilters.verified_only) {
       const { data: verifiedUsers } = await supabase
         .from('user_profiles')
