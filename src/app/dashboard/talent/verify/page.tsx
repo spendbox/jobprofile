@@ -237,6 +237,7 @@ export default function VerifyPage() {
         .from('user_profiles')
         .update({
           verification_legal_name: legalName.trim(),
+          verification_liveness_phrase: phrase,
           verification_liveness_path: livenessPat,
           verification_doc_path: docPath,
           verification_requested_at: submittedAt,

@@ -38,8 +38,6 @@ export default function SearchPage() {
 
     if (currentFilters.role_title)
       query = query.ilike('role_title', `%${currentFilters.role_title}%`)
-    if (currentFilters.location)
-      query = query.ilike('location', `%${currentFilters.location}%`)
     if ((currentFilters.skills ?? []).length > 0)
       query = query.overlaps('skills', currentFilters.skills!)
     if (currentFilters.availability?.length)

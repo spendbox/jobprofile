@@ -51,7 +51,6 @@ export interface TalentProfile {
   bio?: string
   skills: string[]
   years_experience: number
-  location?: string
   timezone?: string
   availability_status: AvailabilityStatus
   portfolio_url?: string
@@ -93,7 +92,6 @@ export interface SearchFilters {
   min_experience?: number
   max_experience?: number
   availability?: AvailabilityStatus[]
-  location?: string
   verified_only?: boolean
 }
 

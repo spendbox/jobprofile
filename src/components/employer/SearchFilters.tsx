@@ -123,16 +123,6 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
       </div>
 
       <div>
-        <label className="label text-xs uppercase tracking-wide text-slate-500">Location</label>
-        <input
-          className="input-base text-sm"
-          placeholder="City or Country"
-          value={filters.location ?? ''}
-          onChange={(e) => update({ location: e.target.value })}
-        />
-      </div>
-
-      <div>
         <label className="label text-xs uppercase tracking-wide text-slate-500">Trust</label>
         <label className="flex items-center gap-2 py-1.5 cursor-pointer">
           <input
