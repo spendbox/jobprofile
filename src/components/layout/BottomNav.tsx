@@ -80,7 +80,9 @@ export function BottomNav() {
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 safe-area-bottom">
       <div className="flex items-stretch h-16">
         {links.map(({ href, label, icon, badge }) => {
-          const isActive = pathname.startsWith(href)
+          const isActive = href === dashboardHref
+            ? pathname === href
+            : pathname.startsWith(href)
           return (
             <Link
               key={href}

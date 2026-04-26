@@ -437,7 +437,7 @@ export default function ProfilePage() {
 
       {/* Request modal */}
       {requestModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4 bg-black/50">
+        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4 bg-black/50">
           <div className="bg-white rounded-2xl w-full max-w-md p-6">
             <h3 className="font-bold text-slate-900 mb-1">Request Interview with {name}</h3>
             <p className="text-sm text-slate-500 mb-5 leading-relaxed">
