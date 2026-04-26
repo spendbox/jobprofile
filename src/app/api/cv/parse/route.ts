@@ -2,7 +2,7 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { Worker } from 'worker_threads'
+import { Worker as NodeWorker } from 'worker_threads'
 import path from 'path'
 
 const SYSTEM_PROMPT = `You are a CV/resume parser. Extract structured information and return ONLY valid JSON with this exact shape:
@@ -20,6 +20,41 @@ Rules:
 - suggested_skills: list every distinct technical skill, tool, or technology mentioned anywhere in the CV.
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
+
+// Wraps worker_threads.Worker in the browser Worker interface that pdfjs-dist types expect.
+// addEventListener/removeEventListener bridge to Node's EventEmitter .on/.off.
+function makePdfjsWorker(workerPath: string): { port: Worker; terminate: () => Promise<number> } {
+  const nodeWorker = new NodeWorker(workerPath)
+  const listeners = new Map<string, Set<(e: MessageEvent) => void>>()
+
+  const emit = (type: string, data: unknown) => {
+    listeners.get(type)?.forEach((fn) => fn({ data } as MessageEvent))
+  }
+
+  nodeWorker.on('message', (data) => emit('message', data))
+
+  const port = {
+    postMessage(msg: unknown, transfer?: unknown[]) {
+      nodeWorker.postMessage(msg, transfer as never)
+    },
+    addEventListener(type: string, handler: EventListenerOrEventListenerObject) {
+      const fn = typeof handler === 'function' ? handler : (e: Event) => handler.handleEvent(e)
+      if (!listeners.has(type)) listeners.set(type, new Set())
+      listeners.get(type)!.add(fn as (e: MessageEvent) => void)
+    },
+    removeEventListener(type: string, handler: EventListenerOrEventListenerObject) {
+      const fn = typeof handler === 'function' ? handler : (e: Event) => handler.handleEvent(e)
+      listeners.get(type)?.delete(fn as (e: MessageEvent) => void)
+    },
+    dispatchEvent: () => false,
+    onerror: null,
+    onmessage: null,
+    onmessageerror: null,
+    terminate() { return nodeWorker.terminate() },
+  } as unknown as Worker
+
+  return { port, terminate: () => nodeWorker.terminate() }
+}
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
   // pdfjs-dist reads DOMMatrix/ImageData/Path2D at module init — polyfill for Node/Lambda
@@ -47,11 +82,9 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
 
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
-  // pdfjs-dist v5 requires a real worker in Node.js — fake-worker mode was removed.
-  // Use worker_threads.Worker pointing at the bundled worker script.
   const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-  const worker = new Worker(workerPath)
-  pdfjsLib.GlobalWorkerOptions.workerPort = worker
+  const { port, terminate } = makePdfjsWorker(workerPath)
+  pdfjsLib.GlobalWorkerOptions.workerPort = port
 
   try {
     const doc = await pdfjsLib.getDocument({
@@ -72,7 +105,7 @@ async function extractPdfText(buffer: Buffer): Promise<string> {
     }
     return pages.join('\n')
   } finally {
-    await worker.terminate()
+    await terminate()
   }
 }
 
