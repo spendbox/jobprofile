@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { SkillTag } from '@/components/ui/SkillTag'
 import type { SearchFilters } from '@/types'
 
@@ -13,6 +14,27 @@ interface SearchFiltersProps {
 
 export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: SearchFiltersProps) {
   const [skillInput, setSkillInput] = useState('')
+  const [roleTitles, setRoleTitles] = useState<string[]>([])
+  const [roleSearch, setRoleSearch] = useState('')
+  const [roleDropdownOpen, setRoleDropdownOpen] = useState(false)
+  const roleRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.from('role_titles').select('title').order('title').then(({ data }) => {
+      if (data) setRoleTitles(data.map((r) => r.title))
+    })
+  }, [])
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (roleRef.current && !roleRef.current.contains(e.target as Node)) {
+        setRoleDropdownOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
 
   const update = (patch: Partial<SearchFilters>) =>
     onChange({ ...filters, ...patch })
@@ -46,14 +68,53 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
         </button>
       </div>
 
-      <div>
+      <div ref={roleRef} className="relative">
         <label className="label text-xs uppercase tracking-wide text-slate-500">Role / Title</label>
-        <input
-          className="input-base text-sm"
-          placeholder="e.g. Frontend Developer"
-          value={filters.role_title ?? ''}
-          onChange={(e) => update({ role_title: e.target.value })}
-        />
+        <div className="relative">
+          <input
+            className="input-base text-sm pr-8"
+            placeholder="Search role titles…"
+            value={roleSearch !== '' ? roleSearch : (filters.role_title ?? '')}
+            onFocus={() => { setRoleSearch(''); setRoleDropdownOpen(true) }}
+            onChange={(e) => { setRoleSearch(e.target.value); setRoleDropdownOpen(true) }}
+          />
+          {filters.role_title && (
+            <button
+              type="button"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              onClick={() => { update({ role_title: undefined }); setRoleSearch('') }}
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        {roleDropdownOpen && (
+          <div className="absolute z-10 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg max-h-48 overflow-y-auto">
+            {roleTitles
+              .filter((t) => t.toLowerCase().includes((roleSearch || filters.role_title || '').toLowerCase()))
+              .slice(0, 30)
+              .map((title) => (
+                <button
+                  key={title}
+                  type="button"
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 hover:text-indigo-700 transition-colors ${filters.role_title === title ? 'bg-indigo-50 text-indigo-700 font-semibold' : 'text-slate-700'}`}
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    update({ role_title: title })
+                    setRoleSearch('')
+                    setRoleDropdownOpen(false)
+                  }}
+                >
+                  {title}
+                </button>
+              ))}
+            {roleTitles.filter((t) => t.toLowerCase().includes((roleSearch || filters.role_title || '').toLowerCase())).length === 0 && (
+              <div className="px-3 py-2 text-sm text-slate-400">No matching titles</div>
+            )}
+          </div>
+        )}
       </div>
 
       <div>

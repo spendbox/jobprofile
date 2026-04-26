@@ -34,12 +34,10 @@ export default function TalentDashboard() {
     if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
 
     const load = async () => {
-      const [{ data: userProfileData }, { data: profileData }] = await Promise.all([
-        supabase.from('user_profiles').select('is_verified').eq('id', userProfile.id).single(),
-        supabase.from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false }),
-      ])
+      setIsVerified(!!userProfile.is_verified)
 
-      if (userProfileData?.is_verified) setIsVerified(true)
+      const { data: profileData } = await supabase
+        .from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false })
 
       if (profileData) {
         setProfiles(profileData as TalentProfile[])
@@ -200,6 +198,18 @@ export default function TalentDashboard() {
                     </span>
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0 -mt-1">
+                    <button
+                      onClick={() => {
+                        const url = `${window.location.origin}/profile/${profile.id}`
+                        navigator.clipboard.writeText(url).catch(() => {})
+                      }}
+                      className="btn-ghost p-2.5 rounded-xl"
+                      title="Copy public link"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => setModal({ type: 'edit', profile })}
                       className="btn-ghost p-2.5 rounded-xl"

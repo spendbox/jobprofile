@@ -125,16 +125,18 @@ export default function ProfilePage() {
   return (
     <div className="page-container max-w-2xl">
 
-      {/* Back link */}
-      <Link
-        href="/search"
-        className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-6 transition-colors font-medium"
-      >
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-        </svg>
-        Back to search
-      </Link>
+      {/* Back link — shown for employers and logged-out visitors only */}
+      {currentUser?.user_role !== 'talent' && (
+        <Link
+          href="/search"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-6 transition-colors font-medium"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+          </svg>
+          Back to search
+        </Link>
+      )}
 
       {/* Hero card */}
       <div className="card overflow-hidden mb-5">

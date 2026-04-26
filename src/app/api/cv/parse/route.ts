@@ -20,6 +20,29 @@ Rules:
 - If a field has no data, use an empty array [] or empty string "".`
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
+  // pdfjs-dist legacy build reads DOMMatrix/ImageData/Path2D at module init — polyfill for Node/Lambda
+  if (typeof globalThis.DOMMatrix === 'undefined') {
+    class _DOMMatrix {
+      a=1;b=0;c=0;d=1;e=0;f=0
+      constructor(init?: string | number[]) {
+        if (Array.isArray(init) && init.length === 6) {
+          [this.a, this.b, this.c, this.d, this.e, this.f] = init as [number,number,number,number,number,number]
+        }
+      }
+      multiply() { return new _DOMMatrix() }
+      inverse() { return new _DOMMatrix() }
+      translate() { return new _DOMMatrix() }
+      scale() { return new _DOMMatrix() }
+      rotate() { return new _DOMMatrix() }
+      transformPoint(p: unknown) { return p }
+    }
+    Object.assign(globalThis, {
+      DOMMatrix: _DOMMatrix,
+      ImageData: class { constructor(public width=1, public height=1) {} },
+      Path2D: class { moveTo() {} lineTo() {} closePath() {} },
+    })
+  }
+
   // Dynamic import keeps pdfjs-dist out of the main server bundle
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
