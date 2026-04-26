@@ -15,9 +15,8 @@ interface ProfileFormProps {
 }
 
 const AVAILABILITY_OPTIONS: { value: AvailabilityStatus; label: string; desc: string }[] = [
-  { value: 'available', label: 'Available Now', desc: 'Actively looking, available immediately' },
-  { value: 'open', label: 'Open to Offers', desc: 'Employed but open to the right opportunity' },
-  { value: 'not_looking', label: 'Not Looking', desc: 'Not seeking new opportunities right now' },
+  { value: 'available', label: 'Available Now', desc: 'Actively looking, available to start immediately' },
+  { value: 'not_looking', label: 'Not Available', desc: 'Not seeking new opportunities right now' },
 ]
 
 const STEP_LABELS = ['The Role', 'CV & Skills', 'Availability', 'Portfolio']
@@ -88,7 +87,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
     skills: existing?.skills ?? ([] as string[]),
     years_experience: existing?.years_experience ?? 0,
     timezone: existing?.timezone ?? 'UTC',
-    availability_status: (existing?.availability_status ?? 'open') as AvailabilityStatus,
+    availability_status: (existing?.availability_status === 'open' ? 'available' : (existing?.availability_status ?? 'available')) as AvailabilityStatus,
     portfolio_item_ids: existing?.portfolio_item_ids ?? ([] as string[]),
   })
 
@@ -166,7 +165,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
       }
       const { cv_data, suggested_skills } = await res.json()
       setCvData(cv_data)
-      if (cv_data.summary && !form.bio.trim()) set('bio', cv_data.summary)
+      if (cv_data.summary) set('bio', cv_data.summary)
       setSuggestedSkills((suggested_skills as string[]).filter((s) => !form.skills.includes(s)))
       setCvStage('done')
     } catch (err) {
@@ -540,7 +539,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
           <div className="space-y-8">
             <div>
               <h2 className="text-2xl font-black text-slate-900 mb-1">Work Samples</h2>
-              <p className="text-sm text-slate-500">Pick items from your portfolio to show on this profile.</p>
+              <p className="text-sm text-slate-500">Pick items from your portfolio to show on this profile. You can always add or update these later from your dashboard.</p>
             </div>
 
             <div>

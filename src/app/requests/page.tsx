@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
 import { timeAgo } from '@/lib/utils'
-import type { InterviewRequest, UserProfile, RequestStatus, RequestStage } from '@/types'
+import type { InterviewRequest, UserProfile, RequestStatus } from '@/types'
 import { STAGE_LABELS } from '@/types'
 
 export default function RequestsPage() {
@@ -18,7 +18,6 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<InterviewRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all'>('all')
-  const [stageFilter, setStageFilter] = useState<RequestStage | 'all'>('all')
 
   useEffect(() => {
     if (loadingAuth || !userProfile) return
@@ -74,10 +73,9 @@ export default function RequestsPage() {
   const filtered = useMemo(() => {
     return requests.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
-      if (stageFilter !== 'all' && r.stage !== stageFilter) return false
       return true
     })
-  }, [requests, statusFilter, stageFilter])
+  }, [requests, statusFilter])
 
   if (loadingAuth || loading) {
     return (
@@ -135,25 +133,6 @@ export default function RequestsPage() {
             ))}
           </div>
 
-          {/* Stage filter — only for accepted requests when visible */}
-          {(statusFilter === 'accepted' || statusFilter === 'all') && requests.some((r) => r.status === 'accepted') && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-xs text-slate-400 font-medium mr-1">Stage:</span>
-              {(['all', 'discovered', 'interested', 'interview', 'offer', 'hired'] as const).map((s) => (
-                <button
-                  key={s}
-                  onClick={() => setStageFilter(s)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    stageFilter === s
-                      ? 'bg-slate-800 text-white'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  {s === 'all' ? 'All stages' : STAGE_LABELS[s]}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 

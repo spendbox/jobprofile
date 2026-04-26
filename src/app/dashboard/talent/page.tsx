@@ -27,6 +27,7 @@ export default function TalentDashboard() {
   const [modal, setModal] = useState<ModalState>(null)
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
 
   useEffect(() => {
     if (loadingAuth) return
@@ -147,19 +148,41 @@ export default function TalentDashboard() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 mb-10">
-        {[
-          { label: 'Profiles', value: profiles.length },
-          { label: 'Total Views', value: totalViews },
-          { label: 'Requests', value: totalRequests },
-        ].map(({ label, value }) => (
-          <div key={label} className="card px-5 py-4 sm:p-6 flex items-center justify-between sm:block sm:text-center">
-            <p className="section-label sm:hidden">{label}</p>
-            <p className="text-3xl sm:text-4xl font-black text-slate-900">{value.toLocaleString()}</p>
-            <p className="section-label mt-0 sm:mt-2 hidden sm:block">{label}</p>
+      {/* Stats — collapsible on mobile, always-visible grid on desktop */}
+      <div className="mb-10">
+        {/* Mobile toggle */}
+        <button
+          onClick={() => setStatsOpen((o) => !o)}
+          className="sm:hidden w-full flex items-center justify-between px-5 py-3 card mb-2"
+        >
+          <div className="flex items-center gap-4 text-sm">
+            <span className="font-semibold text-slate-700">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
+            <span className="text-slate-400">·</span>
+            <span className="text-slate-500">{totalViews} views</span>
+            <span className="text-slate-400">·</span>
+            <span className="text-slate-500">{totalRequests} requests</span>
           </div>
-        ))}
+          <svg
+            className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${statsOpen ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {/* Expanded mobile stats / always-visible desktop grid */}
+        <div className={`grid grid-cols-3 gap-3 sm:gap-5 ${statsOpen ? 'grid' : 'hidden'} sm:grid`}>
+          {[
+            { label: 'Profiles', value: profiles.length },
+            { label: 'Total Views', value: totalViews },
+            { label: 'Requests', value: totalRequests },
+          ].map(({ label, value }) => (
+            <div key={label} className="card p-4 sm:p-6 text-center">
+              <p className="text-3xl sm:text-4xl font-black text-slate-900">{value.toLocaleString()}</p>
+              <p className="section-label mt-1 sm:mt-2">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Profiles list */}
