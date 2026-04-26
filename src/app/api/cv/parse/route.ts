@@ -19,6 +19,28 @@ Rules:
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
 
+async function extractPdfText(buffer: Buffer): Promise<string> {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const PDFParser = require('pdf2json') as new (ctx: null, rawTextMode: 1) => {
+    on(event: 'pdfParser_dataReady', cb: () => void): void
+    on(event: 'pdfParser_dataError', cb: (err: { parserError: Error }) => void): void
+    parseBuffer(buf: Buffer): void
+    getRawTextContent(): string
+  }
+  const parser = new PDFParser(null, 1)
+  return new Promise((resolve, reject) => {
+    parser.on('pdfParser_dataReady', () => {
+      try {
+        resolve(decodeURIComponent(parser.getRawTextContent()))
+      } catch {
+        resolve(parser.getRawTextContent())
+      }
+    })
+    parser.on('pdfParser_dataError', (err) => reject(err.parserError ?? err))
+    parser.parseBuffer(buffer)
+  })
+}
+
 export async function POST(req: NextRequest) {
   try {
     const formData = await req.formData()
@@ -30,10 +52,7 @@ export async function POST(req: NextRequest) {
 
     let text = ''
     if (isPdf) {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
-      const result = await pdfParse(buffer)
-      text = result.text
+      text = await extractPdfText(buffer)
     } else {
       const mammoth = await import('mammoth')
       const result = await mammoth.extractRawText({ buffer })

@@ -103,7 +103,7 @@ export default function PortfolioPage() {
   const handleAdd = async () => {
     if (!userProfile) return
     if (!addLabel.trim()) { setAddError('Label is required'); return }
-    if (addType === 'link') {
+    if (addType === 'link' || addType === 'video') {
       if (!addUrl.trim()) { setAddError('URL is required'); return }
     } else {
       if (!addFile) { setAddError('Please select a file'); return }
@@ -117,7 +117,7 @@ export default function PortfolioPage() {
       let file_url: string | undefined
       let external_url: string | undefined
 
-      if (addType === 'link') {
+      if (addType === 'link' || addType === 'video') {
         external_url = addUrl.trim()
       } else if (addFile) {
         const { data: { session } } = await supabase.auth.getSession()
@@ -390,16 +390,19 @@ export default function PortfolioPage() {
               </div>
 
               {/* File or URL */}
-              {addType === 'link' ? (
+              {addType === 'link' || addType === 'video' ? (
                 <div>
                   <label className="label">URL *</label>
                   <input
                     type="url"
                     className="input-base"
-                    placeholder="https://…"
+                    placeholder={addType === 'video' ? 'e.g. https://youtube.com/watch?v=…' : 'https://…'}
                     value={addUrl}
                     onChange={(e) => setAddUrl(e.target.value)}
                   />
+                  {addType === 'video' && (
+                    <p className="text-xs text-slate-400 mt-1">YouTube, Vimeo, Loom, or any video URL</p>
+                  )}
                 </div>
               ) : (
                 <div>

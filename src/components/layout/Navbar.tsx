@@ -47,9 +47,22 @@ export function Navbar() {
   if (pathname.startsWith('/admin')) return null
 
   const isAuthPage = pathname.startsWith('/auth')
-  const dashboardHref = userProfile?.user_role === 'employer'
-    ? '/dashboard/employer'
-    : '/dashboard/talent'
+  const isTalent = userProfile?.user_role === 'talent'
+  const dashboardHref = isTalent ? '/dashboard/talent' : '/dashboard/employer'
+
+  const navLinks = userProfile
+    ? isTalent
+      ? [
+          { href: '/dashboard/talent', label: 'Dashboard' },
+          { href: '/dashboard/talent/portfolio', label: 'Portfolio' },
+          { href: '/requests', label: 'Requests' },
+        ]
+      : [
+          { href: '/search', label: 'Discover' },
+          { href: '/dashboard/employer', label: 'Dashboard' },
+          { href: '/requests', label: 'Requests' },
+        ]
+    : []
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
@@ -67,20 +80,24 @@ export function Navbar() {
           <nav className="flex items-center gap-2">
             {userProfile ? (
               <>
-                <Link href="/search" className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
-                  Discover
-                </Link>
-                <Link href={dashboardHref} className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
-                  Dashboard
-                </Link>
-                <Link href="/requests" className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
-                  Requests
-                  {pendingCount > 0 && (
-                    <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-red-500 text-white rounded-full leading-none">
-                      {pendingCount > 9 ? '9+' : pendingCount}
-                    </span>
-                  )}
-                </Link>
+                {navLinks.map(({ href, label }) => (
+                  <Link
+                    key={href}
+                    href={href}
+                    className={`hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium rounded-lg transition-colors ${
+                      pathname.startsWith(href) && (href !== '/dashboard/talent' || pathname === '/dashboard/talent')
+                        ? 'text-indigo-600 bg-indigo-50'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
+                    }`}
+                  >
+                    {label}
+                    {label === 'Requests' && pendingCount > 0 && (
+                      <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-red-500 text-white rounded-full leading-none">
+                        {pendingCount > 9 ? '9+' : pendingCount}
+                      </span>
+                    )}
+                  </Link>
+                ))}
                 <div className="relative">
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 ml-1">
                     <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold overflow-hidden">

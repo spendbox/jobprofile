@@ -276,7 +276,7 @@ export default function TalentDashboard() {
 
       {/* Create / Edit modal — full screen */}
       {modal && userProfile && (
-        <div className="fixed inset-0 z-50 overflow-auto bg-white">
+        <div className="fixed inset-0 z-[60] overflow-auto bg-white">
           <ProfileForm
             userId={userProfile.id}
             existing={modal.type === 'edit' ? modal.profile : undefined}
