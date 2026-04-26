@@ -30,8 +30,7 @@ export async function POST(req: NextRequest) {
 
     let text = ''
     if (isPdf) {
-      // Use the lib path to avoid pdf-parse's test-file side effect in Next.js
-      const pdfParse = (await import('pdf-parse/lib/pdf-parse.js' as string)).default
+      const pdfParse = (await import('pdf-parse')).default
       const result = await pdfParse(buffer)
       text = result.text
     } else {
