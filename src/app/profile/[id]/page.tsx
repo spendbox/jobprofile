@@ -48,22 +48,17 @@ export default function ProfilePage() {
       if (!profileData) { router.push('/search'); return }
       setProfile(profileData as TalentProfile)
 
-      const fetchPromises: Promise<unknown>[] = [
+      const itemIds: string[] = profileData.portfolio_item_ids ?? []
+      await Promise.all([
         supabase.rpc('get_passed_tests_for_user', { p_user_id: profileData.user_id }).then(({ data }) => {
           if (data) setPassedTests(data as PassedTest[])
         }),
-      ]
-
-      const itemIds: string[] = profileData.portfolio_item_ids ?? []
-      if (itemIds.length > 0) {
-        fetchPromises.push(
-          supabase.from('portfolio_items').select('*').in('id', itemIds).then(({ data }) => {
-            if (data) setPortfolioItems(data as PortfolioItem[])
-          })
-        )
-      }
-
-      await Promise.all(fetchPromises)
+        itemIds.length > 0
+          ? supabase.from('portfolio_items').select('*').in('id', itemIds).then(({ data }) => {
+              if (data) setPortfolioItems(data as PortfolioItem[])
+            })
+          : Promise.resolve(),
+      ])
 
       if (authUser) {
         const [{ data: up }, { data: reqData }] = await Promise.all([
