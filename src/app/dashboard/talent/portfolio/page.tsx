@@ -120,9 +120,6 @@ export default function PortfolioPage() {
       if (addType === 'link' || addType === 'video') {
         external_url = addUrl.trim()
       } else if (addFile) {
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) throw new Error('Not authenticated')
-
         const ext = addFile.name.split('.').pop()?.toLowerCase() ?? ''
         const mimeMap: Record<string, string> = {
           jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png',
@@ -134,22 +131,14 @@ export default function PortfolioPage() {
         const contentType = addFile.type || mimeMap[ext] || 'application/octet-stream'
         const safeName = addFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')
         const path = `${userProfile.id}/${Date.now()}_${safeName}`
-        const uploadUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/portfolio/${path}`
 
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest()
-          xhr.open('POST', uploadUrl)
-          xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
-          xhr.setRequestHeader('Content-Type', contentType)
-          xhr.setRequestHeader('x-upsert', 'true')
-          xhr.upload.onprogress = (evt) => {
-            if (evt.lengthComputable) setAddProgress(Math.round((evt.loaded / evt.total) * 100))
-          }
-          xhr.onload = () => xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
-          xhr.onerror = () => reject(new Error('Network error'))
-          xhr.send(addFile)
-        })
+        setAddProgress(10)
+        const { error: uploadErr } = await supabase.storage
+          .from('portfolio')
+          .upload(path, addFile, { contentType, upsert: true })
+        if (uploadErr) throw new Error(uploadErr.message)
 
+        setAddProgress(100)
         const { data: pub } = supabase.storage.from('portfolio').getPublicUrl(path)
         file_path = path
         file_url = pub.publicUrl

@@ -20,25 +20,29 @@ Rules:
 - If a field has no data, use an empty array [] or empty string "".`
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const PDFParser = require('pdf2json') as new (ctx: null, rawTextMode: 1) => {
-    on(event: 'pdfParser_dataReady', cb: () => void): void
-    on(event: 'pdfParser_dataError', cb: (err: { parserError: Error }) => void): void
-    parseBuffer(buf: Buffer): void
-    getRawTextContent(): string
+  // Dynamic import keeps pdfjs-dist out of the main server bundle
+  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
+
+  // Use fake worker — no separate worker thread needed for text extraction
+  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
+
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+    disableFontFace: true,
+  }).promise
+
+  const pages: string[] = []
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p)
+    const content = await page.getTextContent()
+    const text = content.items
+      .map((item) => ('str' in item ? (item as { str: string }).str : ''))
+      .join(' ')
+    pages.push(text)
   }
-  const parser = new PDFParser(null, 1)
-  return new Promise((resolve, reject) => {
-    parser.on('pdfParser_dataReady', () => {
-      try {
-        resolve(decodeURIComponent(parser.getRawTextContent()))
-      } catch {
-        resolve(parser.getRawTextContent())
-      }
-    })
-    parser.on('pdfParser_dataError', (err) => reject(err.parserError ?? err))
-    parser.parseBuffer(buffer)
-  })
+
+  return pages.join('\n')
 }
 
 export async function POST(req: NextRequest) {

@@ -186,9 +186,6 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
 
       if (cvFile && cvData) {
         setCvUploading(true)
-        const { data: { session } } = await supabase.auth.getSession()
-        if (!session) throw new Error('Not authenticated')
-
         const ext = cvFile.name.split('.').pop()?.toLowerCase() ?? ''
         const cvMimeMap: Record<string, string> = {
           pdf: 'application/pdf',
@@ -197,18 +194,12 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
         }
         const cvContentType = cvFile.type || cvMimeMap[ext] || 'application/pdf'
         const path = `${userId}/cv_${Date.now()}.${ext}`
-        const uploadUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/portfolio/${path}`
 
-        await new Promise<void>((resolve, reject) => {
-          const xhr = new XMLHttpRequest()
-          xhr.open('POST', uploadUrl)
-          xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
-          xhr.setRequestHeader('Content-Type', cvContentType)
-          xhr.setRequestHeader('x-upsert', 'true')
-          xhr.onload = () => xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
-          xhr.onerror = () => reject(new Error('Network error'))
-          xhr.send(cvFile)
-        })
+        const { error: uploadErr } = await supabase.storage
+          .from('portfolio')
+          .upload(path, cvFile, { contentType: cvContentType, upsert: true })
+        if (uploadErr) throw new Error(uploadErr.message)
+
         finalCvFilePath = path
         setCvUploading(false)
       }
