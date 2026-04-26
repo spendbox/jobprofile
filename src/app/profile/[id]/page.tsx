@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
-import type { TalentProfile, UserProfile } from '@/types'
+import type { TalentProfile, UserProfile, PortfolioItem } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 
 interface PassedTest {
@@ -28,6 +28,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<TalentProfile | null>(null)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
   const [passedTests, setPassedTests] = useState<PassedTest[]>([])
+  const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([])
   const [hasRequested, setHasRequested] = useState(false)
   const [loading, setLoading] = useState(true)
   const [requestModal, setRequestModal] = useState(false)
@@ -47,11 +48,22 @@ export default function ProfilePage() {
       if (!profileData) { router.push('/search'); return }
       setProfile(profileData as TalentProfile)
 
-      // Load passed proficiency tests for this talent
-      const { data: testsData } = await supabase.rpc('get_passed_tests_for_user', {
-        p_user_id: profileData.user_id,
-      })
-      if (testsData) setPassedTests(testsData as PassedTest[])
+      const fetchPromises: Promise<unknown>[] = [
+        supabase.rpc('get_passed_tests_for_user', { p_user_id: profileData.user_id }).then(({ data }) => {
+          if (data) setPassedTests(data as PassedTest[])
+        }),
+      ]
+
+      const itemIds: string[] = profileData.portfolio_item_ids ?? []
+      if (itemIds.length > 0) {
+        fetchPromises.push(
+          supabase.from('portfolio_items').select('*').in('id', itemIds).then(({ data }) => {
+            if (data) setPortfolioItems(data as PortfolioItem[])
+          })
+        )
+      }
+
+      await Promise.all(fetchPromises)
 
       if (authUser) {
         const [{ data: up }, { data: reqData }] = await Promise.all([
@@ -113,7 +125,7 @@ export default function ProfilePage() {
 
   const name = profile.user_profiles?.full_name ?? 'Talent'
   const status = profile.availability_status
-  const hasResources = profile.cv_url || profile.portfolio_url || profile.intro_video_url
+  const cvData = profile.cv_data
 
   return (
     <div className="page-container max-w-2xl">
@@ -238,79 +250,154 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Resources */}
-      {hasResources && (
-        <div className="card p-6 sm:p-7 mb-8">
-          <p className="section-label mb-4">Resources</p>
-          <div className="space-y-3">
-            {profile.cv_url && (
-              <a
-                href={profile.cv_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-indigo-50 hover:border-indigo-200 transition-colors group"
-              >
-                <div className="w-10 h-10 bg-indigo-100 text-indigo-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-indigo-200 transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      {/* Portfolio items */}
+      {portfolioItems.length > 0 && (
+        <div className="card p-6 sm:p-7 mb-5">
+          <p className="section-label mb-4">Portfolio</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {portfolioItems.map((item) => {
+              if (item.type === 'image' && item.file_url) {
+                return (
+                  <a
+                    key={item.id}
+                    href={item.file_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="group block rounded-xl overflow-hidden border border-slate-100 hover:border-indigo-200 transition-colors"
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={item.file_url} alt={item.label} className="w-full h-28 object-cover" />
+                    <div className="px-2.5 py-2 bg-white">
+                      <p className="text-xs font-medium text-slate-700 truncate">{item.label}</p>
+                    </div>
+                  </a>
+                )
+              }
+
+              const href = item.type === 'link' ? (item.external_url ?? '#') : (item.file_url ?? '#')
+              const colors: Record<string, string> = {
+                document: 'bg-blue-50 text-blue-600',
+                video: 'bg-violet-50 text-violet-600',
+                link: 'bg-emerald-50 text-emerald-600',
+              }
+              const iconColor = colors[item.type] ?? 'bg-slate-50 text-slate-500'
+
+              const icons: Record<string, React.ReactNode> = {
+                document: (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900">CV / Resume</p>
-                  <p className="text-xs text-slate-500 mt-0.5">View or download document</p>
-                </div>
-                <svg className="w-4 h-4 text-slate-400 group-hover:text-indigo-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            )}
-
-            {profile.portfolio_url && (
-              <a
-                href={profile.portfolio_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-violet-50 hover:border-violet-200 transition-colors group"
-              >
-                <div className="w-10 h-10 bg-violet-100 text-violet-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-violet-200 transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-                  </svg>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-slate-900">Portfolio</p>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">{profile.portfolio_url}</p>
-                </div>
-                <svg className="w-4 h-4 text-slate-400 group-hover:text-violet-500 transition-colors flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            )}
-
-            {profile.intro_video_url && (
-              <a
-                href={profile.intro_video_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-4 p-4 rounded-2xl border border-slate-100 bg-slate-50 hover:bg-emerald-50 hover:border-emerald-200 transition-colors group"
-              >
-                <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-200 transition-colors">
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                ),
+                video: (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-slate-900">Intro Video</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Self-introduction recording</p>
-                </div>
-                <svg className="w-4 h-4 text-slate-400 group-hover:text-emerald-500 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-              </a>
-            )}
+                ),
+                link: (
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                  </svg>
+                ),
+              }
+
+              return (
+                <a
+                  key={item.id}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex flex-col items-center justify-center gap-2 p-4 rounded-xl border border-slate-100 hover:border-indigo-200 bg-slate-50 hover:bg-indigo-50 transition-colors text-center min-h-[100px] group"
+                >
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${iconColor}`}>
+                    {icons[item.type]}
+                  </div>
+                  <p className="text-xs font-medium text-slate-700 leading-snug line-clamp-2">{item.label}</p>
+                </a>
+              )
+            })}
           </div>
         </div>
+      )}
+
+      {/* CV Timeline */}
+      {cvData && (
+        <>
+          {(cvData.experience?.length > 0) && (
+            <div className="card p-6 sm:p-7 mb-5">
+              <p className="section-label mb-5">Experience</p>
+              <div className="space-y-6">
+                {cvData.experience.map((exp, i) => (
+                  <div key={i} className="relative pl-5 border-l-2 border-slate-100">
+                    <div className="absolute -left-[5px] top-1 w-2 h-2 rounded-full bg-indigo-400" />
+                    <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 mb-1">
+                      <p className="text-sm font-bold text-slate-900">{exp.title}</p>
+                      <p className="text-xs text-slate-400 flex-shrink-0">{exp.period}</p>
+                    </div>
+                    <p className="text-xs font-semibold text-indigo-600 mb-2">{exp.company}</p>
+                    {exp.bullets?.length > 0 && (
+                      <ul className="space-y-1">
+                        {exp.bullets.map((b, j) => (
+                          <li key={j} className="flex gap-2 text-xs text-slate-600 leading-relaxed">
+                            <span className="text-slate-300 flex-shrink-0 mt-0.5">•</span>
+                            <span>{b}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {cvData.education?.length > 0 && (
+            <div className="card p-6 sm:p-7 mb-5">
+              <p className="section-label mb-4">Education</p>
+              <div className="space-y-3">
+                {cvData.education.map((edu, i) => (
+                  <div key={i} className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{edu.degree}</p>
+                      <p className="text-xs text-indigo-600 font-medium mt-0.5">{edu.school}</p>
+                    </div>
+                    <p className="text-xs text-slate-400 flex-shrink-0">{edu.period}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {(cvData.certifications?.length > 0 || cvData.languages?.length > 0) && (
+            <div className="card p-6 sm:p-7 mb-5">
+              {cvData.certifications?.length > 0 && (
+                <div className="mb-4">
+                  <p className="section-label mb-3">Certifications</p>
+                  <div className="flex flex-wrap gap-2">
+                    {cvData.certifications.map((c, i) => (
+                      <span key={i} className="inline-flex items-center gap-1.5 text-xs font-medium bg-amber-50 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-full">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M6.267 3.455a3.066 3.066 0 001.745-.723 3.066 3.066 0 013.976 0 3.066 3.066 0 001.745.723 3.066 3.066 0 012.812 2.812c.051.643.304 1.254.723 1.745a3.066 3.066 0 010 3.976 3.066 3.066 0 00-.723 1.745 3.066 3.066 0 01-2.812 2.812 3.066 3.066 0 00-1.745.723 3.066 3.066 0 01-3.976 0 3.066 3.066 0 00-1.745-.723 3.066 3.066 0 01-2.812-2.812 3.066 3.066 0 00-.723-1.745 3.066 3.066 0 010-3.976 3.066 3.066 0 00.723-1.745 3.066 3.066 0 012.812-2.812zm7.44 5.252a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {cvData.languages?.length > 0 && (
+                <div>
+                  <p className="section-label mb-3">Languages</p>
+                  <div className="flex flex-wrap gap-2">
+                    {cvData.languages.map((l, i) => (
+                      <span key={i} className="text-xs font-medium bg-slate-100 text-slate-600 px-3 py-1.5 rounded-full">{l}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Footer meta */}

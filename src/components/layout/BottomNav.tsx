@@ -71,7 +71,7 @@ export function BottomNav() {
   const links = [
     { href: dashboardHref, label: 'Dashboard', icon: <UserIcon />, badge: 0 },
     isTalent
-      ? { href: '/dashboard/talent/cvs', label: 'My CVs', icon: <DocumentIcon />, badge: 0 }
+      ? { href: '/dashboard/talent/portfolio', label: 'Portfolio', icon: <DocumentIcon />, badge: 0 }
       : { href: '/search', label: 'Discover', icon: <SearchIcon />, badge: 0 },
     { href: '/requests', label: 'Requests', icon: <InboxIcon />, badge: pendingCount },
   ]
