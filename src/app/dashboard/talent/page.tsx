@@ -10,7 +10,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { ProfileForm } from '@/components/talent/ProfileForm'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
-import { formatSalary, availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
+import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
 import type { TalentProfile, AvailabilityStatus } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 
@@ -23,6 +23,7 @@ export default function TalentDashboard() {
 
   const [profiles, setProfiles] = useState<TalentProfile[]>([])
   const [requestCounts, setRequestCounts] = useState<Record<string, number>>({})
+  const [isVerified, setIsVerified] = useState(false)
   const [modal, setModal] = useState<ModalState>(null)
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
@@ -33,11 +34,12 @@ export default function TalentDashboard() {
     if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
 
     const load = async () => {
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userProfile.id)
-        .order('created_at', { ascending: false })
+      const [{ data: userProfileData }, { data: profileData }] = await Promise.all([
+        supabase.from('user_profiles').select('is_verified').eq('id', userProfile.id).single(),
+        supabase.from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false }),
+      ])
+
+      if (userProfileData?.is_verified) setIsVerified(true)
 
       if (profileData) {
         setProfiles(profileData as TalentProfile[])
@@ -123,7 +125,7 @@ export default function TalentDashboard() {
 
       {/* Verification banner */}
       {userProfile && (
-        userProfile.is_verified ? (
+        isVerified ? (
           <div className="flex items-center gap-3 bg-indigo-50 border border-indigo-200 rounded-2xl px-4 py-3 mb-6">
             <span className="w-7 h-7 bg-indigo-600 rounded-full flex items-center justify-center flex-shrink-0">
               <svg className="w-3.5 h-3.5 text-white" fill="currentColor" viewBox="0 0 20 20">
@@ -245,7 +247,6 @@ export default function TalentDashboard() {
 
                 {/* Meta stats */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
-                  <span className="font-semibold text-slate-700">{formatSalary(profile.salary_expectation)}</span>
                   {profile.location && (
                     <span className="flex items-center gap-1">
                       <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

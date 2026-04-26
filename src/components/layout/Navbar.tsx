@@ -1,19 +1,52 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { usePathname } from 'next/navigation'
 import { useAuth } from '@/contexts/AuthContext'
+import { createClient } from '@/lib/supabase/client'
 import { getInitials } from '@/lib/utils'
 
 export function Navbar() {
   const { userProfile, signOut } = useAuth()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [pendingCount, setPendingCount] = useState(0)
   const pathname = usePathname()
 
-  const isAuthPage = pathname.startsWith('/auth')
+  useEffect(() => {
+    if (!userProfile) { setPendingCount(0); return }
+    const supabase = createClient()
+
+    const fetchCount = async () => {
+      if (userProfile.user_role === 'talent') {
+        const { data: profileIds } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', userProfile.id)
+        const ids = profileIds?.map((p) => p.id) ?? []
+        if (ids.length === 0) { setPendingCount(0); return }
+        const { count } = await supabase
+          .from('interview_requests')
+          .select('id', { count: 'exact', head: true })
+          .in('profile_id', ids)
+          .eq('status', 'pending')
+        setPendingCount(count ?? 0)
+      } else {
+        const { count } = await supabase
+          .from('interview_requests')
+          .select('id', { count: 'exact', head: true })
+          .eq('employer_id', userProfile.id)
+          .eq('status', 'pending')
+        setPendingCount(count ?? 0)
+      }
+    }
+
+    fetchCount()
+  }, [userProfile])
+
   if (pathname.startsWith('/admin')) return null
 
+  const isAuthPage = pathname.startsWith('/auth')
   const dashboardHref = userProfile?.user_role === 'employer'
     ? '/dashboard/employer'
     : '/dashboard/talent'
@@ -40,13 +73,23 @@ export function Navbar() {
                 <Link href={dashboardHref} className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
                   Dashboard
                 </Link>
-                <Link href="/requests" className="hidden md:inline-flex items-center px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
+                <Link href="/requests" className="hidden md:inline-flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-colors">
                   Requests
+                  {pendingCount > 0 && (
+                    <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-red-500 text-white rounded-full leading-none">
+                      {pendingCount > 9 ? '9+' : pendingCount}
+                    </span>
+                  )}
                 </Link>
                 <div className="relative">
                   <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 ml-1">
-                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">
-                      {getInitials(userProfile.full_name)}
+                    <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold overflow-hidden">
+                      {userProfile.avatar_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={userProfile.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        getInitials(userProfile.full_name)
+                      )}
                     </div>
                   </button>
                   {menuOpen && (
@@ -57,6 +100,9 @@ export function Navbar() {
                       </div>
                       <Link href={dashboardHref} className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setMenuOpen(false)}>
                         Dashboard
+                      </Link>
+                      <Link href="/settings" className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setMenuOpen(false)}>
+                        Settings
                       </Link>
                       <button
                         onClick={() => { setMenuOpen(false); signOut() }}

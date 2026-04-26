@@ -51,7 +51,6 @@ export interface TalentProfile {
   bio?: string
   skills: string[]
   years_experience: number
-  salary_expectation?: number
   location?: string
   timezone?: string
   availability_status: AvailabilityStatus
@@ -93,10 +92,9 @@ export interface SearchFilters {
   skills?: string[]
   min_experience?: number
   max_experience?: number
-  min_salary?: number
-  max_salary?: number
   availability?: AvailabilityStatus[]
   location?: string
+  verified_only?: boolean
 }
 
 export const AVAILABILITY_LABELS: Record<AvailabilityStatus, string> = {

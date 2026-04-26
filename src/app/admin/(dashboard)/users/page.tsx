@@ -10,6 +10,8 @@ interface AdminUser {
   is_verified: boolean
   verified_at: string | null
   verification_doc_path: string | null
+  verification_liveness_path: string | null
+  verification_legal_name: string | null
   verification_requested_at: string | null
   created_at: string
   attempts: { total: number; passed: number }
@@ -49,6 +51,13 @@ export default function AdminUsersPage() {
   const viewDoc = async (userId: string) => {
     const res = await fetch(`/api/admin/users/${userId}/doc`)
     if (!res.ok) { alert('No document found or could not generate URL.'); return }
+    const { url } = await res.json()
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
+  const viewVideo = async (userId: string) => {
+    const res = await fetch(`/api/admin/users/${userId}/liveness`)
+    if (!res.ok) { alert('No liveness video found or could not generate URL.'); return }
     const { url } = await res.json()
     window.open(url, '_blank', 'noopener,noreferrer')
   }
@@ -155,16 +164,22 @@ export default function AdminUsersPage() {
                       )}
                       {hasPendingDoc && (
                         <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full">
-                          Doc Submitted
+                          Pending Review
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400 truncate mt-0.5">{user.email}</p>
+                    {user.verification_legal_name && (
+                      <p className="text-xs text-slate-300 mt-0.5">
+                        <span className="text-slate-500">Legal name: </span>
+                        {user.verification_legal_name}
+                      </p>
+                    )}
                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 flex-wrap">
                       <span>Joined {timeAgo(user.created_at)}</span>
                       {hasPendingDoc && user.verification_requested_at && (
                         <span className="text-amber-500">
-                          Doc submitted {timeAgo(user.verification_requested_at)}
+                          Submitted {timeAgo(user.verification_requested_at)}
                         </span>
                       )}
                       <span>{user.attempts.total} test{user.attempts.total !== 1 ? 's' : ''} taken</span>
@@ -181,6 +196,17 @@ export default function AdminUsersPage() {
 
                   {/* Actions */}
                   <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    {user.verification_liveness_path && (
+                      <button
+                        onClick={() => viewVideo(user.id)}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-colors flex items-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.867v6.266a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                        </svg>
+                        View Video
+                      </button>
+                    )}
                     {user.verification_doc_path && (
                       <button
                         onClick={() => viewDoc(user.id)}

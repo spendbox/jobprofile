@@ -123,28 +123,6 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
       </div>
 
       <div>
-        <label className="label text-xs uppercase tracking-wide text-slate-500">Monthly Salary (USD)</label>
-        <div className="grid grid-cols-2 gap-2">
-          <input
-            type="number"
-            min={0}
-            className="input-base text-sm"
-            placeholder="Min"
-            value={filters.min_salary ?? ''}
-            onChange={(e) => update({ min_salary: e.target.value ? Number(e.target.value) : undefined })}
-          />
-          <input
-            type="number"
-            min={0}
-            className="input-base text-sm"
-            placeholder="Max"
-            value={filters.max_salary ?? ''}
-            onChange={(e) => update({ max_salary: e.target.value ? Number(e.target.value) : undefined })}
-          />
-        </div>
-      </div>
-
-      <div>
         <label className="label text-xs uppercase tracking-wide text-slate-500">Location</label>
         <input
           className="input-base text-sm"
@@ -152,6 +130,26 @@ export function SearchFiltersPanel({ filters, onChange, isOpen, onClose }: Searc
           value={filters.location ?? ''}
           onChange={(e) => update({ location: e.target.value })}
         />
+      </div>
+
+      <div>
+        <label className="label text-xs uppercase tracking-wide text-slate-500">Trust</label>
+        <label className="flex items-center gap-2 py-1.5 cursor-pointer">
+          <input
+            type="checkbox"
+            className="accent-indigo-600 w-4 h-4"
+            checked={filters.verified_only ?? false}
+            onChange={(e) => update({ verified_only: e.target.checked || undefined })}
+          />
+          <span className="text-sm text-slate-700 flex items-center gap-1.5">
+            Verified only
+            <span className="inline-flex items-center justify-center w-4 h-4 bg-indigo-600 rounded-full flex-shrink-0">
+              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+          </span>
+        </label>
       </div>
     </div>
   )
