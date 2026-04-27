@@ -1,3 +1,9 @@
+-- Add new columns to interview_requests first (policies below reference them)
+ALTER TABLE public.interview_requests
+  ADD COLUMN IF NOT EXISTS talent_find_id   uuid,
+  ADD COLUMN IF NOT EXISTS star_rating      integer CHECK (star_rating BETWEEN 1 AND 5),
+  ADD COLUMN IF NOT EXISTS question_answers jsonb;
+
 -- Talent Finds: structured job postings with AI candidate scoring
 
 CREATE TABLE IF NOT EXISTS public.talent_finds (
@@ -77,11 +83,10 @@ CREATE POLICY "Employer updates own tfc" ON public.talent_find_candidates
 CREATE INDEX IF NOT EXISTS tfc_talent_find_idx ON public.talent_find_candidates (talent_find_id);
 CREATE INDEX IF NOT EXISTS tfc_profile_idx     ON public.talent_find_candidates (profile_id);
 
--- Add talent_find_id, star_rating, question_answers to interview_requests
+-- Add FK constraint now that talent_finds table exists
 ALTER TABLE public.interview_requests
-  ADD COLUMN IF NOT EXISTS talent_find_id   uuid REFERENCES public.talent_finds(id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS star_rating      integer CHECK (star_rating BETWEEN 1 AND 5),
-  ADD COLUMN IF NOT EXISTS question_answers jsonb;
+  ADD CONSTRAINT IF NOT EXISTS ir_talent_find_id_fkey
+    FOREIGN KEY (talent_find_id) REFERENCES public.talent_finds(id) ON DELETE SET NULL;
 
 CREATE INDEX IF NOT EXISTS ir_talent_find_idx ON public.interview_requests (talent_find_id);
 
