@@ -84,9 +84,15 @@ CREATE INDEX IF NOT EXISTS tfc_talent_find_idx ON public.talent_find_candidates 
 CREATE INDEX IF NOT EXISTS tfc_profile_idx     ON public.talent_find_candidates (profile_id);
 
 -- Add FK constraint now that talent_finds table exists
-ALTER TABLE public.interview_requests
-  ADD CONSTRAINT IF NOT EXISTS ir_talent_find_id_fkey
-    FOREIGN KEY (talent_find_id) REFERENCES public.talent_finds(id) ON DELETE SET NULL;
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'ir_talent_find_id_fkey'
+  ) THEN
+    ALTER TABLE public.interview_requests
+      ADD CONSTRAINT ir_talent_find_id_fkey
+        FOREIGN KEY (talent_find_id) REFERENCES public.talent_finds(id) ON DELETE SET NULL;
+  END IF;
+END $$;
 
 CREATE INDEX IF NOT EXISTS ir_talent_find_idx ON public.interview_requests (talent_find_id);
 
