@@ -15,7 +15,6 @@ interface AdminUser {
   verification_liveness_phrase: string | null
   verification_requested_at: string | null
   created_at: string
-  attempts: { total: number; passed: number }
 }
 
 export default function AdminUsersPage() {
@@ -190,12 +189,6 @@ export default function AdminUsersPage() {
                       {hasPendingDoc && user.verification_requested_at && (
                         <span className="text-amber-500">
                           Submitted {timeAgo(user.verification_requested_at)}
-                        </span>
-                      )}
-                      <span>{user.attempts.total} test{user.attempts.total !== 1 ? 's' : ''} taken</span>
-                      {user.attempts.total > 0 && (
-                        <span className={user.attempts.passed > 0 ? 'text-emerald-400' : 'text-slate-500'}>
-                          {user.attempts.passed} passed
                         </span>
                       )}
                       {user.is_verified && user.verified_at && (

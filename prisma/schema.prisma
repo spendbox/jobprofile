@@ -53,6 +53,17 @@ model Profile {
   @@map("profiles")
 }
 
+model JobOpening {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id String   @db.Uuid
+  title       String
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  requests InterviewRequest[]
+
+  @@map("job_openings")
+}
+
 model InterviewRequest {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   employer_id String   @db.Uuid
@@ -60,11 +71,15 @@ model InterviewRequest {
   status      String   @default("pending") // 'pending' | 'accepted' | 'declined'
   stage       String   @default("discovered") // 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
   message     String?
+  notes       String?
+  archived    Boolean  @default(false)
+  opening_id  String?  @db.Uuid
   created_at  DateTime @default(now()) @db.Timestamptz(6)
   updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
   employer UserProfile @relation("EmployerRequests", fields: [employer_id], references: [id], onDelete: Cascade)
   profile  Profile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  opening  JobOpening? @relation(fields: [opening_id], references: [id], onDelete: SetNull)
 
   @@unique([employer_id, profile_id])
   @@map("interview_requests")

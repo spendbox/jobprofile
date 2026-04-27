@@ -7,7 +7,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { ProfileCard } from '@/components/talent/ProfileCard'
 import { SearchFiltersPanel } from '@/components/employer/SearchFilters'
-import type { TalentProfile, SearchFilters } from '@/types'
+import type { TalentProfile, SearchFilters, JobOpening } from '@/types'
 
 const PAGE_SIZE = 12
 
@@ -22,7 +22,9 @@ export default function SearchPage() {
   const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set())
   const [requestModal, setRequestModal] = useState<{ profileId: string } | null>(null)
   const [requestMessage, setRequestMessage] = useState('')
+  const [requestOpening, setRequestOpening] = useState<string>('')
   const [requesting, setRequesting] = useState(false)
+  const [openings, setOpenings] = useState<JobOpening[]>([])
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
 
@@ -87,6 +89,14 @@ export default function SearchPage() {
       .then(({ data }) => {
         if (data) setRequestedIds(new Set(data.map((r) => r.profile_id)))
       })
+    if (userProfile.user_role === 'employer') {
+      supabase
+        .from('job_openings')
+        .select('*')
+        .eq('employer_id', userProfile.id)
+        .order('created_at', { ascending: false })
+        .then(({ data }) => { if (data) setOpenings(data as JobOpening[]) })
+    }
   }, [userProfile, supabase])
 
   const submitRequest = async () => {
@@ -96,6 +106,7 @@ export default function SearchPage() {
       employer_id: userProfile.id,
       profile_id: requestModal.profileId,
       message: requestMessage.trim() || null,
+      opening_id: requestOpening || null,
       status: 'pending',
       stage: 'discovered',
     })
@@ -105,6 +116,7 @@ export default function SearchPage() {
     setRequesting(false)
     setRequestModal(null)
     setRequestMessage('')
+    setRequestOpening('')
   }
 
   const totalPages = Math.ceil(total / PAGE_SIZE)
@@ -218,6 +230,18 @@ export default function SearchPage() {
           <div className="bg-white rounded-2xl w-full max-w-md p-6">
             <h3 className="font-bold text-slate-900 mb-1">Send Interview Request</h3>
             <p className="text-sm text-slate-500 mb-5 leading-relaxed">Add an optional message to introduce yourself.</p>
+            {openings.length > 0 && (
+              <select
+                className="input-base mb-4 text-sm"
+                value={requestOpening}
+                onChange={(e) => setRequestOpening(e.target.value)}
+              >
+                <option value="">No opening selected</option>
+                {openings.map((o) => (
+                  <option key={o.id} value={o.id}>{o.title}</option>
+                ))}
+              </select>
+            )}
             <textarea
               className="input-base resize-none mb-5"
               rows={3}

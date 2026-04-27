@@ -47,36 +47,6 @@ export interface CVData {
   languages: string[]
 }
 
-export interface TestQuestion {
-  id: string
-  text: string
-  options: string[]
-  correct: number
-}
-
-export interface ProficiencyTest {
-  id: string
-  title: string
-  description?: string
-  skill_category: string
-  questions: TestQuestion[]
-  passing_score: number
-  time_limit_minutes: number
-  is_active: boolean
-  created_at: string
-  updated_at: string
-}
-
-export interface TestAttempt {
-  id: string
-  user_id: string
-  test_id: string
-  score: number
-  passed: boolean
-  answers: Record<string, number>
-  completed_at: string
-}
-
 export interface TalentProfile {
   id: string
   user_id: string
@@ -97,6 +67,13 @@ export interface TalentProfile {
   user_profiles?: UserProfile
 }
 
+export interface JobOpening {
+  id: string
+  employer_id: string
+  title: string
+  created_at: string
+}
+
 export interface InterviewRequest {
   id: string
   employer_id: string
@@ -104,6 +81,10 @@ export interface InterviewRequest {
   status: RequestStatus
   stage: RequestStage
   message?: string
+  notes?: string
+  archived: boolean
+  opening_id?: string
+  opening?: JobOpening
   created_at: string
   updated_at: string
   profiles?: TalentProfile & { user_profiles?: UserProfile }

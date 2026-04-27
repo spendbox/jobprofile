@@ -9,17 +9,9 @@ import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
-import type { TalentProfile, UserProfile, PortfolioItem } from '@/types'
+import type { TalentProfile, UserProfile, PortfolioItem, JobOpening } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 import { ProfileForm } from '@/components/talent/ProfileForm'
-
-interface PassedTest {
-  test_id: string
-  score: number
-  completed_at: string
-  title: string
-  skill_category: string
-}
 
 export default function ProfilePage() {
   const params = useParams()
@@ -28,13 +20,14 @@ export default function ProfilePage() {
 
   const [profile, setProfile] = useState<TalentProfile | null>(null)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
-  const [passedTests, setPassedTests] = useState<PassedTest[]>([])
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([])
   const [hasRequested, setHasRequested] = useState(false)
   const [loading, setLoading] = useState(true)
   const [requestModal, setRequestModal] = useState(false)
   const [requestMessage, setRequestMessage] = useState('')
+  const [requestOpening, setRequestOpening] = useState<string>('')
   const [requesting, setRequesting] = useState(false)
+  const [openings, setOpenings] = useState<JobOpening[]>([])
   const [requestSuccess, setRequestSuccess] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
@@ -51,23 +44,27 @@ export default function ProfilePage() {
       setProfile(profileData as TalentProfile)
 
       const itemIds: string[] = profileData.portfolio_item_ids ?? []
-      await Promise.all([
-        supabase.rpc('get_passed_tests_for_user', { p_user_id: profileData.user_id }).then(({ data }) => {
-          if (data) setPassedTests(data as PassedTest[])
-        }),
-        itemIds.length > 0
-          ? supabase.from('portfolio_items').select('*').in('id', itemIds).then(({ data }) => {
-              if (data) setPortfolioItems(data as PortfolioItem[])
-            })
-          : Promise.resolve(),
-      ])
+      if (itemIds.length > 0) {
+        const { data: items } = await supabase.from('portfolio_items').select('*').in('id', itemIds)
+        if (items) setPortfolioItems(items as PortfolioItem[])
+      }
 
       if (authUser) {
         const [{ data: up }, { data: reqData }] = await Promise.all([
           supabase.from('user_profiles').select('*').eq('id', authUser.id).single(),
           supabase.from('interview_requests').select('id').eq('employer_id', authUser.id).eq('profile_id', id).maybeSingle(),
         ])
-        if (up) setCurrentUser(up as UserProfile)
+        if (up) {
+          setCurrentUser(up as UserProfile)
+          if (up.user_role === 'employer') {
+            supabase
+              .from('job_openings')
+              .select('*')
+              .eq('employer_id', authUser.id)
+              .order('created_at', { ascending: false })
+              .then(({ data: od }) => { if (od) setOpenings(od as JobOpening[]) })
+          }
+        }
         if (reqData) setHasRequested(true)
 
         if (authUser.id !== profileData.user_id) {
@@ -107,6 +104,7 @@ export default function ProfilePage() {
       employer_id: authUser.id,
       profile_id: profile.id,
       message: requestMessage.trim() || null,
+      opening_id: requestOpening || null,
       status: 'pending',
       stage: 'discovered',
     })
@@ -116,6 +114,7 @@ export default function ProfilePage() {
     setRequesting(false)
     setRequestModal(false)
     setRequestMessage('')
+    setRequestOpening('')
   }
 
   const isOwnProfile = !!currentUser && currentUser.id === profile?.user_id
@@ -246,30 +245,6 @@ export default function ProfilePage() {
               <SkillTag key={skill} skill={skill} />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* Proficiency Badges */}
-      {passedTests.length > 0 && (
-        <div className="card p-6 sm:p-7 mb-5">
-          <p className="section-label mb-4">Verified Skills</p>
-          <div className="flex flex-wrap gap-2.5">
-            {passedTests.map((test) => (
-              <div
-                key={test.test_id}
-                className="inline-flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-xl"
-              >
-                <svg className="w-3.5 h-3.5 text-emerald-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                </svg>
-                <span className="text-xs font-semibold leading-none">{test.title}</span>
-                <span className="text-[10px] text-emerald-600 font-bold">{test.score}%</span>
-              </div>
-            ))}
-          </div>
-          <p className="text-xs text-slate-400 mt-3">
-            Skill badges are awarded after passing a verified proficiency test.
-          </p>
         </div>
       )}
 
@@ -486,6 +461,18 @@ export default function ProfilePage() {
             <p className="text-sm text-slate-500 mb-5 leading-relaxed">
               Add an optional message to introduce yourself and your company.
             </p>
+            {openings.length > 0 && (
+              <select
+                className="input-base mb-4 text-sm"
+                value={requestOpening}
+                onChange={(e) => setRequestOpening(e.target.value)}
+              >
+                <option value="">No opening selected</option>
+                {openings.map((o) => (
+                  <option key={o.id} value={o.id}>{o.title}</option>
+                ))}
+              </select>
+            )}
             <textarea
               className="input-base resize-none mb-5"
               rows={3}

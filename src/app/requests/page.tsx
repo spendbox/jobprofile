@@ -18,6 +18,7 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<InterviewRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all'>('all')
+  const [archivedFilter, setArchivedFilter] = useState<'active' | 'archived' | 'all'>('active')
 
   useEffect(() => {
     if (loadingAuth || !userProfile) return
@@ -46,7 +47,7 @@ export default function RequestsPage() {
       } else {
         const { data, error } = await supabase
           .from('interview_requests')
-          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
+          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), opening:job_openings(*)')
           .eq('employer_id', userProfile.id)
           .order('created_at', { ascending: false })
         if (error) console.error('requests error', error)
@@ -71,11 +72,16 @@ export default function RequestsPage() {
   }
 
   const filtered = useMemo(() => {
+    const employer = userProfile?.user_role === 'employer'
     return requests.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
+      if (employer) {
+        if (archivedFilter === 'active' && r.archived) return false
+        if (archivedFilter === 'archived' && !r.archived) return false
+      }
       return true
     })
-  }, [requests, statusFilter])
+  }, [requests, statusFilter, archivedFilter, userProfile?.user_role])
 
   if (loadingAuth || loading) {
     return (
@@ -132,6 +138,25 @@ export default function RequestsPage() {
               </button>
             ))}
           </div>
+
+          {/* Archived filter — employer only */}
+          {isEmployer && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(['active', 'archived', 'all'] as const).map((v) => (
+                <button
+                  key={v}
+                  onClick={() => setArchivedFilter(v)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
+                    archivedFilter === v
+                      ? 'bg-slate-700 text-white'
+                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                  }`}
+                >
+                  {v === 'active' ? 'Active' : v === 'archived' ? 'Archived' : 'All'}
+                </button>
+              ))}
+            </div>
+          )}
 
         </div>
       )}
