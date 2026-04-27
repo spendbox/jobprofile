@@ -11,6 +11,7 @@ import { SkillTag } from '@/components/ui/SkillTag'
 import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
 import type { TalentProfile, UserProfile, PortfolioItem } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
+import { ProfileForm } from '@/components/talent/ProfileForm'
 
 interface PassedTest {
   test_id: string
@@ -35,6 +36,7 @@ export default function ProfilePage() {
   const [requestMessage, setRequestMessage] = useState('')
   const [requesting, setRequesting] = useState(false)
   const [requestSuccess, setRequestSuccess] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
     const load = async () => {
@@ -87,6 +89,14 @@ export default function ProfilePage() {
     setRequestModal(true)
   }
 
+  const downloadCv = async () => {
+    if (!profile?.cv_file_path) return
+    const { data } = await supabase.storage
+      .from('portfolio')
+      .createSignedUrl(profile.cv_file_path, 3600)
+    if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
+  }
+
   const submitRequest = async () => {
     if (!profile) return
     const { data: { user: authUser } } = await supabase.auth.getUser()
@@ -107,6 +117,8 @@ export default function ProfilePage() {
     setRequestModal(false)
     setRequestMessage('')
   }
+
+  const isOwnProfile = !!currentUser && currentUser.id === profile?.user_id
 
   if (loading) {
     return (
@@ -188,6 +200,20 @@ export default function ProfilePage() {
               )}
             </div>
           </div>
+
+          {isOwnProfile && (
+            <div className="pt-4 pb-2">
+              <button
+                onClick={() => setEditOpen(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-indigo-600 hover:text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-xl transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                </svg>
+                Edit Profile
+              </button>
+            </div>
+          )}
 
           {/* Stats strip */}
           <div className="grid grid-cols-2 gap-4 pt-6 border-t border-slate-100">
@@ -402,6 +428,21 @@ export default function ProfilePage() {
         Profile updated {timeAgo(profile.availability_updated_at)}
       </p>
 
+      {/* CV download — employer only */}
+      {currentUser?.user_role === 'employer' && profile.cv_file_path && (
+        <div className="mb-4">
+          <button
+            onClick={downloadCv}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border-2 border-indigo-200 text-indigo-600 hover:bg-indigo-50 font-semibold text-sm transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+            </svg>
+            Download CV
+          </button>
+        </div>
+      )}
+
       {/* Sticky CTA — employer only */}
       {currentUser?.user_role === 'employer' && (
         <div className="sticky bottom-20 md:bottom-6">
@@ -459,6 +500,17 @@ export default function ProfilePage() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {editOpen && currentUser && profile && (
+        <div className="fixed inset-0 z-[60] overflow-auto bg-white">
+          <ProfileForm
+            userId={currentUser.id}
+            existing={profile}
+            onSaved={(saved) => { setProfile(saved); setEditOpen(false) }}
+            onCancel={() => setEditOpen(false)}
+          />
         </div>
       )}
     </div>

@@ -27,6 +27,7 @@ export default function TalentDashboard() {
   const [modal, setModal] = useState<ModalState>(null)
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [statsOpen, setStatsOpen] = useState(false)
 
   useEffect(() => {
     if (loadingAuth) return
@@ -34,10 +35,12 @@ export default function TalentDashboard() {
     if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
 
     const load = async () => {
-      setIsVerified(!!userProfile.is_verified)
+      const [{ data: upData }, { data: profileData }] = await Promise.all([
+        supabase.from('user_profiles').select('is_verified').eq('id', userProfile.id).single(),
+        supabase.from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false }),
+      ])
 
-      const { data: profileData } = await supabase
-        .from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false })
+      setIsVerified(!!upData?.is_verified)
 
       if (profileData) {
         setProfiles(profileData as TalentProfile[])
@@ -145,19 +148,41 @@ export default function TalentDashboard() {
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 mb-10">
-        {[
-          { label: 'Profiles', value: profiles.length },
-          { label: 'Total Views', value: totalViews },
-          { label: 'Requests', value: totalRequests },
-        ].map(({ label, value }) => (
-          <div key={label} className="card px-5 py-4 sm:p-6 flex items-center justify-between sm:block sm:text-center">
-            <p className="section-label sm:hidden">{label}</p>
-            <p className="text-3xl sm:text-4xl font-black text-slate-900">{value.toLocaleString()}</p>
-            <p className="section-label mt-0 sm:mt-2 hidden sm:block">{label}</p>
+      {/* Stats — collapsible on mobile, always-visible grid on desktop */}
+      <div className="mb-10">
+        {/* Mobile toggle */}
+        <button
+          onClick={() => setStatsOpen((o) => !o)}
+          className="sm:hidden w-full flex items-center justify-between px-5 py-3 card mb-2"
+        >
+          <div className="flex items-center gap-4 text-sm">
+            <span className="font-semibold text-slate-700">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
+            <span className="text-slate-400">·</span>
+            <span className="text-slate-500">{totalViews} views</span>
+            <span className="text-slate-400">·</span>
+            <span className="text-slate-500">{totalRequests} requests</span>
           </div>
-        ))}
+          <svg
+            className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${statsOpen ? 'rotate-180' : ''}`}
+            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+
+        {/* Expanded mobile stats / always-visible desktop grid */}
+        <div className={`grid grid-cols-3 gap-3 sm:gap-5 ${statsOpen ? 'grid' : 'hidden'} sm:grid`}>
+          {[
+            { label: 'Profiles', value: profiles.length },
+            { label: 'Total Views', value: totalViews },
+            { label: 'Requests', value: totalRequests },
+          ].map(({ label, value }) => (
+            <div key={label} className="card p-4 sm:p-6 text-center">
+              <p className="text-3xl sm:text-4xl font-black text-slate-900">{value.toLocaleString()}</p>
+              <p className="section-label mt-1 sm:mt-2">{label}</p>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Profiles list */}
@@ -180,9 +205,7 @@ export default function TalentDashboard() {
             <div key={profile.id} className="card overflow-hidden">
               {/* Availability accent stripe */}
               <div className={`h-1 ${
-                profile.availability_status === 'available' ? 'bg-emerald-400'
-                : profile.availability_status === 'open' ? 'bg-amber-400'
-                : 'bg-slate-300'
+                profile.availability_status === 'available' || profile.availability_status === 'open' ? 'bg-emerald-400' : 'bg-slate-300'
               }`} />
 
               <div className="p-5 sm:p-6">
@@ -257,20 +280,19 @@ export default function TalentDashboard() {
                 {/* Availability toggle */}
                 <div className="mt-5 pt-5 border-t border-slate-100">
                   <p className="section-label mb-3">Update availability</p>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(['available', 'open', 'not_looking'] as AvailabilityStatus[]).map((s) => (
+                  <div className="flex gap-2">
+                    {(['available', 'not_looking'] as AvailabilityStatus[]).map((s) => (
                       <button
                         key={s}
                         onClick={() => toggleAvailability(profile, s)}
-                        className={`text-xs px-2 py-2.5 rounded-xl border font-semibold transition-all text-center leading-snug ${
-                          profile.availability_status === s
+                        className={`flex-1 text-xs px-3 py-2.5 rounded-xl border font-semibold transition-all text-center ${
+                          (profile.availability_status === s || (s === 'available' && profile.availability_status === 'open'))
                             ? s === 'available' ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                              : s === 'open' ? 'bg-amber-100 text-amber-700 border-amber-300'
                               : 'bg-slate-100 text-slate-600 border-slate-300'
                             : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
                         }`}
                       >
-                        {AVAILABILITY_LABELS[s]}
+                        {s === 'available' ? 'Available' : 'Not Available'}
                       </button>
                     ))}
                   </div>
