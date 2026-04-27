@@ -174,6 +174,15 @@ ${candidateList}`
       stage: 'discovered',
     }))
     await supabase.from('interview_requests').upsert(requestRows, { onConflict: 'employer_id,profile_id', ignoreDuplicates: true })
+
+    // Backfill talent_find_id on any pre-existing requests that were skipped by ignoreDuplicates
+    const profileIds = scoredCandidates.map((c) => c.profile_id)
+    await supabase
+      .from('interview_requests')
+      .update({ talent_find_id: find.id })
+      .eq('employer_id', user.id)
+      .in('profile_id', profileIds)
+      .is('talent_find_id', null)
   }
 
   return NextResponse.json({ talent_find_id: find.id, candidate_count: scoredCandidates.length })

@@ -333,13 +333,8 @@ export default function PipelinePage() {
   const [savingSettings, setSavingSettings] = useState(false)
 
   const loadData = useCallback(async () => {
-    const [findRes, reqRes, scoresRes] = await Promise.all([
+    const [findRes, scoresRes] = await Promise.all([
       fetch(`/api/talent-finds/${id}`),
-      supabase
-        .from('interview_requests')
-        .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
-        .eq('talent_find_id', id)
-        .order('created_at', { ascending: false }),
       fetch(`/api/talent-finds/${id}/candidates`),
     ])
 
@@ -349,13 +344,25 @@ export default function PipelinePage() {
       setEditDesc(f.description ?? '')
       setEditReqs(f.requirements_text ?? '')
     }
-    if (reqRes.data) setRequests(reqRes.data as InterviewRequest[])
+
+    let profileIds: string[] = []
     if (scoresRes.ok) {
       const scores: TalentFindCandidate[] = await scoresRes.json()
       const map: Record<string, TalentFindCandidate> = {}
       scores.forEach((c) => { map[c.profile_id] = c })
       setCandidateScores(map)
+      profileIds = scores.map((c) => c.profile_id)
     }
+
+    if (profileIds.length > 0) {
+      const { data } = await supabase
+        .from('interview_requests')
+        .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
+        .in('profile_id', profileIds)
+        .order('created_at', { ascending: false })
+      if (data) setRequests(data as InterviewRequest[])
+    }
+
     setLoading(false)
   }, [id, supabase])
 
