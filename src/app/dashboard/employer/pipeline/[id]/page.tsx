@@ -8,18 +8,11 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '@/components/ui/Avatar'
-import { SkillTag } from '@/components/ui/SkillTag'
 import { timeAgo } from '@/lib/utils'
-import type {
-  TalentFind, TalentFindCandidate, InterviewRequest, RequestStage
-} from '@/types'
-import {
-  STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS
-} from '@/types'
+import type { TalentFind, TalentFindCandidate, InterviewRequest, RequestStage } from '@/types'
+import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
 
 const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired']
-
-type SidebarFilter = 'uncontacted' | 'all' | RequestStage
 
 // ─── Star Rating ──────────────────────────────────────────────────────────────
 function StarRating({ value, onChange }: { value?: number; onChange: (v: number) => void }) {
@@ -81,12 +74,12 @@ function CandidatePanel({
     onStarChange(request.id, rating)
   }
 
-  const questions = find.custom_questions ?? []
-  const answers = request.question_answers ?? {}
+  const questions = (find.custom_questions ?? []) as string[]
+  const answers = (request.question_answers ?? {}) as Record<string, string>
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">
-      {/* Panel header */}
+      {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
         <h3 className="font-bold text-slate-900 text-base truncate">{name}</h3>
         <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
@@ -98,21 +91,21 @@ function CandidatePanel({
 
       <div className="p-5 space-y-5 flex-1">
         {/* Identity */}
-        <div className="flex items-start gap-4">
+        <div className="flex items-center gap-4">
           <Avatar name={name} size="lg" src={profile?.user_profiles?.avatar_url} />
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2">
               <p className="font-bold text-slate-900">{name}</p>
               {profile?.user_profiles?.is_verified && (
-                <span className="inline-flex items-center justify-center w-5 h-5 bg-indigo-600 rounded-full flex-shrink-0" title="Verified">
-                  <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <span className="inline-flex items-center justify-center w-4 h-4 bg-indigo-600 rounded-full" title="Verified">
+                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 </span>
               )}
             </div>
-            <p className="text-sm text-indigo-600 font-semibold mt-0.5">{profile?.role_title}</p>
-            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+            <p className="text-sm text-slate-500 mt-0.5">{profile?.role_title}</p>
+            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                 request.status === 'accepted' ? 'bg-emerald-100 text-emerald-700'
                 : request.status === 'declined' ? 'bg-red-100 text-red-700'
@@ -120,19 +113,25 @@ function CandidatePanel({
               }`}>
                 {request.status}
               </span>
-              <span className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full font-medium">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
+                request.stage === 'hired' ? 'bg-emerald-100 text-emerald-700'
+                : request.stage === 'offer' ? 'bg-amber-100 text-amber-700'
+                : request.stage === 'interview' ? 'bg-violet-100 text-violet-700'
+                : request.stage === 'interested' ? 'bg-indigo-100 text-indigo-700'
+                : 'bg-slate-100 text-slate-600'
+              }`}>
                 {STAGE_LABELS[request.stage]}
               </span>
             </div>
           </div>
         </div>
 
-        {/* AI Score */}
+        {/* AI score */}
         {candidateScore && (
-          <div className="bg-indigo-50 rounded-xl p-3.5">
+          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
             <div className="flex items-center justify-between mb-1.5">
-              <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wide">AI Match Score</span>
-              <span className="text-lg font-black text-indigo-700">{candidateScore.ai_score}</span>
+              <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">AI Match Score</p>
+              <span className="text-xl font-black text-indigo-700">{candidateScore.ai_score}%</span>
             </div>
             {candidateScore.ai_summary && (
               <p className="text-xs text-indigo-600 leading-relaxed">{candidateScore.ai_summary}</p>
@@ -142,40 +141,22 @@ function CandidatePanel({
 
         {/* Star rating */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your Rating</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your rating</p>
           <StarRating value={request.star_rating} onChange={handleStar} />
         </div>
 
         {/* Notes */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">
-            Notes {saving && <span className="text-slate-400 normal-case font-normal">saving…</span>}
-          </p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Notes</p>
           <textarea
-            className="input-base resize-none text-sm"
-            rows={4}
+            rows={3}
+            className="input-base resize-none text-sm w-full"
             placeholder="Add private notes about this candidate…"
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             onBlur={saveNotes}
           />
-        </div>
-
-        {/* Stage navigation */}
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Move Stage</p>
-          <div className="flex gap-2">
-            {prevStage && (
-              <button onClick={() => onStageChange(request.id, prevStage)} className="btn-secondary flex-1 text-xs py-2">
-                ← {STAGE_LABELS[prevStage]}
-              </button>
-            )}
-            {nextStage && (
-              <button onClick={() => onStageChange(request.id, nextStage)} className="btn-primary flex-1 text-xs py-2">
-                {STAGE_LABELS[nextStage]} →
-              </button>
-            )}
-          </div>
+          {saving && <p className="text-xs text-slate-400 mt-1">Saving…</p>}
         </div>
 
         {/* Q&A */}
@@ -184,20 +165,43 @@ function CandidatePanel({
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Screening Q&A</p>
             <div className="space-y-3">
               {questions.map((q, i) => (
-                <div key={i} className="space-y-1">
-                  <p className="text-xs font-semibold text-slate-700">Q{i + 1}: {q}</p>
-                  {answers[`q${i}`] ? (
-                    <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2 leading-relaxed">
-                      {answers[`q${i}`]}
-                    </p>
-                  ) : (
-                    <p className="text-xs text-slate-400 italic">No answer yet</p>
-                  )}
+                <div key={i}>
+                  <p className="text-xs font-semibold text-slate-700 mb-1">{q}</p>
+                  <p className={`text-sm leading-relaxed p-2.5 rounded-lg border ${
+                    answers[`q${i}`]
+                      ? 'bg-white border-slate-200 text-slate-700'
+                      : 'bg-slate-50 border-slate-100 text-slate-400 italic'
+                  }`}>
+                    {answers[`q${i}`] || 'No answer yet'}
+                  </p>
                 </div>
               ))}
             </div>
           </div>
         )}
+
+        {/* Stage nav */}
+        <div>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Move stage</p>
+          <div className="flex gap-2">
+            {prevStage && (
+              <button
+                onClick={() => onStageChange(request.id, prevStage)}
+                className="flex-1 btn-secondary text-xs py-2"
+              >
+                ← {STAGE_LABELS[prevStage]}
+              </button>
+            )}
+            {nextStage && (
+              <button
+                onClick={() => onStageChange(request.id, nextStage)}
+                className="flex-1 btn-primary text-xs py-2"
+              >
+                {STAGE_LABELS[nextStage]} →
+              </button>
+            )}
+          </div>
+        </div>
 
         {/* Profile links */}
         <div className="flex flex-wrap gap-2 pt-1">
@@ -227,63 +231,15 @@ function CandidatePanel({
   )
 }
 
-// ─── Uncontacted Candidate Row ────────────────────────────────────────────────
-function UncontactedRow({
-  candidate,
-  selected,
-  onToggle,
-}: {
-  candidate: TalentFindCandidate
-  selected: boolean
-  onToggle: () => void
-}) {
-  const profile = candidate.profiles
-  const name = profile?.user_profiles?.full_name ?? 'Talent'
-
-  return (
-    <label className="flex items-start gap-4 p-4 rounded-2xl border border-slate-100 hover:bg-slate-50 transition-colors cursor-pointer">
-      <input
-        type="checkbox"
-        checked={selected}
-        onChange={onToggle}
-        className="mt-1 w-4 h-4 rounded accent-indigo-600 flex-shrink-0"
-      />
-      <Avatar name={name} size="md" src={profile?.user_profiles?.avatar_url} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-2 flex-wrap">
-          <p className="text-sm font-semibold text-slate-900">{name}</p>
-          {profile?.user_profiles?.is_verified && (
-            <span className="inline-flex items-center justify-center w-4 h-4 bg-indigo-600 rounded-full" title="Verified">
-              <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-          )}
-          <span className="text-xs font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full">
-            {candidate.ai_score}% match
-          </span>
-        </div>
-        <p className="text-xs text-slate-500 mt-0.5">{profile?.role_title} · {profile?.years_experience}y exp</p>
-        {candidate.ai_summary && (
-          <p className="text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2">{candidate.ai_summary}</p>
-        )}
-        {(profile?.skills ?? []).length > 0 && (
-          <div className="flex flex-wrap gap-1 mt-2">
-            {(profile?.skills ?? []).slice(0, 5).map((s) => <SkillTag key={s} skill={s} />)}
-          </div>
-        )}
-      </div>
-    </label>
-  )
-}
-
-// ─── Pipeline Candidate Row ───────────────────────────────────────────────────
+// ─── Candidate Row ────────────────────────────────────────────────────────────
 function CandidateRow({
   request,
+  candidateScore,
   selected,
   onSelect,
 }: {
   request: InterviewRequest
+  candidateScore?: TalentFindCandidate
   selected: boolean
   onSelect: () => void
 }) {
@@ -294,14 +250,21 @@ function CandidateRow({
     <button
       onClick={onSelect}
       className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-colors text-left ${
-        selected
-          ? 'bg-indigo-50 border-indigo-200'
-          : 'bg-white border-slate-100 hover:bg-slate-50'
+        selected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'
       }`}
     >
       <Avatar name={name} size="sm" src={profile?.user_profiles?.avatar_url} />
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
+          {profile?.user_profiles?.is_verified && (
+            <span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-indigo-600 rounded-full flex-shrink-0" title="Verified">
+              <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+            </span>
+          )}
+        </div>
         <p className="text-xs text-slate-500 truncate mt-0.5">{profile?.role_title}</p>
       </div>
       <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -314,6 +277,9 @@ function CandidateRow({
         }`}>
           {STAGE_LABELS[request.stage]}
         </span>
+        {candidateScore && (
+          <span className="text-[10px] font-bold text-indigo-500">{candidateScore.ai_score}%</span>
+        )}
         {request.star_rating && (
           <span className="text-amber-400 text-xs leading-none">{'★'.repeat(request.star_rating)}</span>
         )}
@@ -332,14 +298,10 @@ export default function PipelinePage() {
 
   const [find, setFind] = useState<TalentFind | null>(null)
   const [requests, setRequests] = useState<InterviewRequest[]>([])
-  const [uncontacted, setUncontacted] = useState<TalentFindCandidate[]>([])
   const [candidateScores, setCandidateScores] = useState<Record<string, TalentFindCandidate>>({})
   const [loading, setLoading] = useState(true)
-  const [activeFilter, setActiveFilter] = useState<SidebarFilter>('uncontacted')
+  const [activeFilter, setActiveFilter] = useState<'all' | RequestStage>('all')
   const [selectedPanel, setSelectedPanel] = useState<string | null>(null)
-  const [selectedUncontacted, setSelectedUncontacted] = useState<Set<string>>(new Set())
-  const [contacting, setContacting] = useState(false)
-  const [discoverMore, setDiscoverMore] = useState(false)
   const [starFilter, setStarFilter] = useState<number>(0)
   const [verifiedOnly, setVerifiedOnly] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
@@ -347,26 +309,18 @@ export default function PipelinePage() {
   const [sortBy, setSortBy] = useState<'ai_score' | 'star_rating' | 'date' | 'name'>('ai_score')
 
   const loadData = useCallback(async () => {
-    const [findRes, reqRes, candidatesRes] = await Promise.all([
+    const [findRes, reqRes, scoresRes] = await Promise.all([
       fetch(`/api/talent-finds/${id}`),
       supabase
         .from('interview_requests')
         .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
         .eq('talent_find_id', id)
         .order('created_at', { ascending: false }),
-      fetch(`/api/talent-finds/${id}/candidates?contacted=false`),
+      fetch(`/api/talent-finds/${id}/candidates`),
     ])
 
     if (findRes.ok) setFind(await findRes.json())
     if (reqRes.data) setRequests(reqRes.data as InterviewRequest[])
-
-    if (candidatesRes.ok) {
-      const data: TalentFindCandidate[] = await candidatesRes.json()
-      setUncontacted(data)
-    }
-
-    // Also load all candidate scores for enriching the panel
-    const scoresRes = await fetch(`/api/talent-finds/${id}/candidates`)
     if (scoresRes.ok) {
       const scores: TalentFindCandidate[] = await scoresRes.json()
       const map: Record<string, TalentFindCandidate> = {}
@@ -397,52 +351,20 @@ export default function PipelinePage() {
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, star_rating: rating } : r))
   }
 
-  const handleBulkContact = async () => {
-    if (selectedUncontacted.size === 0) return
-    setContacting(true)
-    const res = await fetch(`/api/talent-finds/${id}/contact`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ profile_ids: Array.from(selectedUncontacted) }),
-    })
-    if (res.ok) {
-      setUncontacted((prev) => prev.filter((c) => !selectedUncontacted.has(c.profile_id)))
-      setSelectedUncontacted(new Set())
-      await loadData()
-      setActiveFilter('discovered')
-    }
-    setContacting(false)
-  }
-
-  const handleDiscoverMore = async () => {
-    setDiscoverMore(true)
-    const res = await fetch(`/api/talent-finds/${id}/candidates`, { method: 'POST' })
-    if (res.ok) {
-      const { new_candidates } = await res.json()
-      if (new_candidates > 0) await loadData()
-    }
-    setDiscoverMore(false)
-  }
-
-  // Compute filtered requests
   const filteredRequests = requests.filter((r) => {
     if (!showArchived && r.archived) return false
     if (showArchived && !r.archived) return false
-    if (activeFilter !== 'all' && activeFilter !== 'uncontacted' && r.stage !== activeFilter) return false
+    if (activeFilter !== 'all' && r.stage !== activeFilter) return false
     if (starFilter > 0 && (r.star_rating ?? 0) < starFilter) return false
     if (verifiedOnly && !r.profiles?.user_profiles?.is_verified) return false
     return true
   }).sort((a, b) => {
     if (sortBy === 'star_rating') return (b.star_rating ?? 0) - (a.star_rating ?? 0)
     if (sortBy === 'ai_score') {
-      const sa = candidateScores[a.profile_id]?.ai_score ?? 0
-      const sb = candidateScores[b.profile_id]?.ai_score ?? 0
-      return sb - sa
+      return (candidateScores[b.profile_id]?.ai_score ?? 0) - (candidateScores[a.profile_id]?.ai_score ?? 0)
     }
     if (sortBy === 'name') {
-      const na = a.profiles?.user_profiles?.full_name ?? ''
-      const nb = b.profiles?.user_profiles?.full_name ?? ''
-      return na.localeCompare(nb)
+      return (a.profiles?.user_profiles?.full_name ?? '').localeCompare(b.profiles?.user_profiles?.full_name ?? '')
     }
     return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
   })
@@ -491,22 +413,12 @@ export default function PipelinePage() {
         </div>
       </div>
 
-      <nav className="flex-1 p-3 overflow-y-auto">
+      <nav className="flex-1 p-3 overflow-y-auto space-y-0.5">
         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-2">View</p>
 
         <button
-          onClick={() => { setActiveFilter('uncontacted'); setSidebarOpen(false) }}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors mb-0.5 ${activeFilter === 'uncontacted' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-        >
-          <span>Uncontacted</span>
-          <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${activeFilter === 'uncontacted' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-            {uncontacted.length}
-          </span>
-        </button>
-
-        <button
           onClick={() => { setActiveFilter('all'); setSidebarOpen(false) }}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors mb-0.5 ${activeFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
         >
           <span>All Candidates</span>
           <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${activeFilter === 'all' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
@@ -519,7 +431,7 @@ export default function PipelinePage() {
           <button
             key={s}
             onClick={() => { setActiveFilter(s); setSidebarOpen(false) }}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors mb-0.5 ${activeFilter === s ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeFilter === s ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
           >
             <span>{STAGE_LABELS[s]}</span>
             <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${activeFilter === s ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
@@ -554,17 +466,6 @@ export default function PipelinePage() {
           </label>
         </div>
       </nav>
-
-      {/* Discover more */}
-      <div className="p-4 border-t border-slate-100">
-        <button
-          onClick={handleDiscoverMore}
-          disabled={discoverMore}
-          className="btn-secondary w-full text-xs py-2.5 disabled:opacity-60"
-        >
-          {discoverMore ? 'Searching…' : '+ Discover More Candidates'}
-        </button>
-      </div>
     </div>
   )
 
@@ -609,120 +510,76 @@ export default function PipelinePage() {
               <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
                 <div>
                   <h1 className="font-bold text-slate-900 text-base">
-                    {activeFilter === 'uncontacted' ? 'Uncontacted Matches'
-                      : activeFilter === 'all' ? 'All Candidates'
-                      : STAGE_LABELS[activeFilter as RequestStage]}
+                    {activeFilter === 'all' ? 'All Candidates' : STAGE_LABELS[activeFilter as RequestStage]}
                   </h1>
-                  <p className="text-sm text-slate-500 mt-0.5">
-                    {activeFilter === 'uncontacted' ? `${uncontacted.length} AI-matched profiles` : `${filteredRequests.length} candidates`}
-                  </p>
+                  <p className="text-sm text-slate-500 mt-0.5">{filteredRequests.length} candidates</p>
                 </div>
-                {activeFilter !== 'uncontacted' && (
-                  <select
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                    className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                  >
-                    <option value="ai_score">Sort: AI Score</option>
-                    <option value="star_rating">Sort: Star Rating</option>
-                    <option value="date">Sort: Date Added</option>
-                    <option value="name">Sort: Name</option>
-                  </select>
-                )}
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                  className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  <option value="ai_score">Sort: AI Score</option>
+                  <option value="star_rating">Sort: Star Rating</option>
+                  <option value="date">Sort: Date Added</option>
+                  <option value="name">Sort: Name</option>
+                </select>
               </div>
 
-              {/* Uncontacted discovery mode */}
-              {activeFilter === 'uncontacted' ? (
-                <>
-                  {uncontacted.length === 0 ? (
-                    <div className="card p-12 text-center">
-                      <p className="font-semibold text-slate-700 mb-2">No uncontacted candidates</p>
-                      <p className="text-sm text-slate-500 mb-5">All matched candidates have been contacted, or no matches were found.</p>
-                      <button onClick={handleDiscoverMore} disabled={discoverMore} className="btn-primary mx-auto inline-flex">
-                        {discoverMore ? 'Searching…' : 'Search for New Candidates'}
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Bulk action bar */}
-                      <div className="flex items-center justify-between gap-3 mb-4 p-3 bg-white rounded-2xl border border-slate-200">
-                        <label className="flex items-center gap-2 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            className="accent-indigo-600 w-4 h-4"
-                            checked={selectedUncontacted.size === uncontacted.length && uncontacted.length > 0}
-                            onChange={(e) => {
-                              if (e.target.checked) setSelectedUncontacted(new Set(uncontacted.map((c) => c.profile_id)))
-                              else setSelectedUncontacted(new Set())
-                            }}
-                          />
-                          <span className="text-sm font-semibold text-slate-700">
-                            {selectedUncontacted.size > 0 ? `${selectedUncontacted.size} selected` : 'Select all'}
-                          </span>
-                        </label>
-                        <button
-                          onClick={handleBulkContact}
-                          disabled={selectedUncontacted.size === 0 || contacting}
-                          className="btn-primary text-xs py-2 px-4 disabled:opacity-50"
-                        >
-                          {contacting ? 'Sending…' : `Send Request to ${selectedUncontacted.size || '…'}`}
-                        </button>
-                      </div>
-
-                      <div className="space-y-2">
-                        {uncontacted.map((c) => (
-                          <UncontactedRow
-                            key={c.id}
-                            candidate={c}
-                            selected={selectedUncontacted.has(c.profile_id)}
-                            onToggle={() => setSelectedUncontacted((prev) => {
-                              const next = new Set(Array.from(prev))
-                              if (next.has(c.profile_id)) next.delete(c.profile_id)
-                              else next.add(c.profile_id)
-                              return next
-                            })}
-                          />
-                        ))}
-                      </div>
-                    </>
-                  )}
-                </>
+              {filteredRequests.length === 0 ? (
+                <div className="card p-12 text-center">
+                  <p className="font-semibold text-slate-700 mb-2">No candidates here yet</p>
+                  <p className="text-sm text-slate-500">
+                    {activeFilter !== 'all'
+                      ? 'No candidates in this stage. Try selecting a different stage.'
+                      : 'Candidates will appear here after your Talent Find processes.'}
+                  </p>
+                </div>
               ) : (
-                /* Pipeline candidates */
-                filteredRequests.length === 0 ? (
-                  <div className="card p-12 text-center">
-                    <p className="font-semibold text-slate-700 mb-2">No candidates here yet</p>
-                    <p className="text-sm text-slate-500">Send requests from the Uncontacted tab to start your pipeline.</p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {filteredRequests.map((req) => (
-                      <CandidateRow
-                        key={req.id}
-                        request={req}
-                        selected={selectedPanel === req.id}
-                        onSelect={() => setSelectedPanel(selectedPanel === req.id ? null : req.id)}
-                      />
-                    ))}
-                  </div>
-                )
+                <div className="space-y-2">
+                  {filteredRequests.map((req) => (
+                    <CandidateRow
+                      key={req.id}
+                      request={req}
+                      candidateScore={candidateScores[req.profile_id]}
+                      selected={selectedPanel === req.id}
+                      onSelect={() => setSelectedPanel(selectedPanel === req.id ? null : req.id)}
+                    />
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Detail panel */}
-          {selectedRequest && (
-            <div className="fixed inset-0 z-50 md:static md:inset-auto md:flex-[1.2] md:min-w-[340px] md:max-w-[420px] bg-white md:border-l border-slate-200 md:h-[calc(100vh-0px)] md:sticky md:top-0 overflow-hidden">
-              <CandidatePanel
-                request={selectedRequest}
-                find={find}
-                candidateScore={candidateScores[selectedRequest.profile_id]}
-                onClose={() => setSelectedPanel(null)}
-                onStageChange={handleStageChange}
-                onArchive={handleArchive}
-                onStarChange={handleStarChange}
-              />
-            </div>
+          {/* Right detail panel */}
+          {selectedRequest && find && (
+            <>
+              {/* Mobile full-screen */}
+              <div className="md:hidden fixed inset-0 z-50 bg-white overflow-y-auto">
+                <CandidatePanel
+                  request={selectedRequest}
+                  find={find}
+                  candidateScore={candidateScores[selectedRequest.profile_id]}
+                  onClose={() => setSelectedPanel(null)}
+                  onStageChange={handleStageChange}
+                  onArchive={handleArchive}
+                  onStarChange={handleStarChange}
+                />
+              </div>
+
+              {/* Desktop slide-over */}
+              <div className="hidden md:flex flex-col w-80 xl:w-96 bg-white border-l border-slate-200 sticky top-0 h-screen overflow-hidden">
+                <CandidatePanel
+                  request={selectedRequest}
+                  find={find}
+                  candidateScore={candidateScores[selectedRequest.profile_id]}
+                  onClose={() => setSelectedPanel(null)}
+                  onStageChange={handleStageChange}
+                  onArchive={handleArchive}
+                  onStarChange={handleStarChange}
+                />
+              </div>
+            </>
           )}
         </div>
       </div>

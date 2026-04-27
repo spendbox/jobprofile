@@ -84,3 +84,7 @@ ALTER TABLE public.interview_requests
   ADD COLUMN IF NOT EXISTS question_answers jsonb;
 
 CREATE INDEX IF NOT EXISTS ir_talent_find_idx ON public.interview_requests (talent_find_id);
+
+-- Grant access to authenticated role so PostgREST exposes these tables
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.talent_finds          TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.talent_find_candidates TO authenticated;

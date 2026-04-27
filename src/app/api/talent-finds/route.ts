@@ -136,15 +136,25 @@ ${candidateList}`
     }))
   }
 
-  // 4. Insert talent_find_candidates
+  // 4. Insert talent_find_candidates + auto-send interview_requests to all matches
   if (scoredCandidates.length > 0) {
-    const rows = scoredCandidates.map((c) => ({
+    const candidateRows = scoredCandidates.map((c) => ({
       talent_find_id: find.id,
       profile_id: c.profile_id,
       ai_score: Math.max(0, Math.min(100, c.score)),
       ai_summary: c.summary ?? null,
+      contacted: true,
     }))
-    await supabase.from('talent_find_candidates').upsert(rows, { onConflict: 'talent_find_id,profile_id' })
+    await supabase.from('talent_find_candidates').upsert(candidateRows, { onConflict: 'talent_find_id,profile_id' })
+
+    const requestRows = scoredCandidates.map((c) => ({
+      employer_id: user.id,
+      profile_id: c.profile_id,
+      talent_find_id: find.id,
+      status: 'pending',
+      stage: 'discovered',
+    }))
+    await supabase.from('interview_requests').upsert(requestRows, { onConflict: 'employer_id,profile_id', ignoreDuplicates: true })
   }
 
   return NextResponse.json({ talent_find_id: find.id, candidate_count: scoredCandidates.length })
