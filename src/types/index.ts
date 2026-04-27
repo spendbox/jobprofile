@@ -3,6 +3,9 @@ export type AvailabilityStatus = 'available' | 'open' | 'not_looking'
 export type RequestStatus = 'pending' | 'accepted' | 'declined'
 export type RequestStage = 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
 export type PortfolioItemType = 'image' | 'document' | 'link' | 'video'
+export type EmploymentType = 'fulltime' | 'parttime' | 'contract' | 'volunteer' | 'internship'
+export type WorkArrangement = 'remote' | 'hybrid' | 'onsite'
+export type TalentFindStatus = 'active' | 'archived'
 
 export interface UserProfile {
   id: string
@@ -67,6 +70,42 @@ export interface TalentProfile {
   user_profiles?: UserProfile
 }
 
+export interface TalentFind {
+  id: string
+  employer_id: string
+  role_title: string
+  employment_type: EmploymentType
+  work_arrangement: WorkArrangement
+  hiring_country?: string
+  hiring_state?: string
+  min_experience?: number
+  max_experience?: number
+  skills: string[]
+  salary_min?: number
+  salary_max?: number
+  description: string
+  requirements_text?: string
+  custom_questions: string[]
+  status: TalentFindStatus
+  created_at: string
+  updated_at: string
+  // aggregates populated server-side
+  candidate_count?: number
+  interested_count?: number
+  pipeline_count?: number
+}
+
+export interface TalentFindCandidate {
+  id: string
+  talent_find_id: string
+  profile_id: string
+  ai_score: number
+  ai_summary?: string
+  contacted: boolean
+  created_at: string
+  profiles?: TalentProfile & { user_profiles?: UserProfile }
+}
+
 export interface JobOpening {
   id: string
   employer_id: string
@@ -85,10 +124,17 @@ export interface InterviewRequest {
   archived: boolean
   opening_id?: string
   opening?: JobOpening
+  talent_find_id?: string
+  talent_find?: TalentFind
+  star_rating?: number
+  question_answers?: Record<string, string>
   created_at: string
   updated_at: string
   profiles?: TalentProfile & { user_profiles?: UserProfile }
   employer?: UserProfile
+  // from talent_find_candidates join (populated in pipeline view)
+  ai_score?: number
+  ai_summary?: string
 }
 
 export interface UserCV {
@@ -121,6 +167,20 @@ export const STAGE_LABELS: Record<RequestStage, string> = {
   interview: 'Interview',
   offer: 'Offer',
   hired: 'Hired',
+}
+
+export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
+  fulltime: 'Full-time',
+  parttime: 'Part-time',
+  contract: 'Contract',
+  volunteer: 'Volunteer',
+  internship: 'Internship',
+}
+
+export const WORK_ARRANGEMENT_LABELS: Record<WorkArrangement, string> = {
+  remote: 'Remote',
+  hybrid: 'Hybrid',
+  onsite: 'On-site',
 }
 
 export const TIMEZONES = [
