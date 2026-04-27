@@ -14,6 +14,26 @@ import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@
 
 const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired']
 
+// ─── NavItem ──────────────────────────────────────────────────────────────────
+function NavItem({ icon, label, count, active, onClick }: {
+  icon: React.ReactNode; label: string; count: number; active: boolean; onClick: () => void
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${
+        active ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+      }`}
+    >
+      <span className={active ? 'text-white/80' : 'text-slate-400'}>{icon}</span>
+      <span className="flex-1 text-left">{label}</span>
+      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${active ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-400'}`}>
+        {count}
+      </span>
+    </button>
+  )
+}
+
 // ─── Star Rating ──────────────────────────────────────────────────────────────
 function StarRating({ value, onChange }: { value?: number; onChange: (v: number) => void }) {
   const [hover, setHover] = useState(0)
@@ -307,6 +327,10 @@ export default function PipelinePage() {
   const [showArchived, setShowArchived] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [sortBy, setSortBy] = useState<'ai_score' | 'star_rating' | 'date' | 'name'>('ai_score')
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [editDesc, setEditDesc] = useState('')
+  const [editReqs, setEditReqs] = useState('')
+  const [savingSettings, setSavingSettings] = useState(false)
 
   const loadData = useCallback(async () => {
     const [findRes, reqRes, scoresRes] = await Promise.all([
@@ -319,7 +343,12 @@ export default function PipelinePage() {
       fetch(`/api/talent-finds/${id}/candidates`),
     ])
 
-    if (findRes.ok) setFind(await findRes.json())
+    if (findRes.ok) {
+      const f = await findRes.json()
+      setFind(f)
+      setEditDesc(f.description ?? '')
+      setEditReqs(f.requirements_text ?? '')
+    }
     if (reqRes.data) setRequests(reqRes.data as InterviewRequest[])
     if (scoresRes.ok) {
       const scores: TalentFindCandidate[] = await scoresRes.json()
@@ -349,6 +378,22 @@ export default function PipelinePage() {
 
   const handleStarChange = (requestId: string, rating: number) => {
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, star_rating: rating } : r))
+  }
+
+  const saveSettings = async () => {
+    if (!find) return
+    setSavingSettings(true)
+    const res = await fetch(`/api/talent-finds/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ description: editDesc, requirements_text: editReqs || null }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setFind(updated)
+    }
+    setSavingSettings(false)
+    setSettingsOpen(false)
   }
 
   const filteredRequests = requests.filter((r) => {
@@ -395,61 +440,87 @@ export default function PipelinePage() {
 
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      <div className="p-5 border-b border-slate-100">
-        <Link href="/dashboard/employer" className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 mb-4 transition-colors font-medium">
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      {/* Sidebar header */}
+      <div className="px-4 py-3 border-b border-slate-100">
+        <Link
+          href="/dashboard/employer"
+          className="flex items-center gap-1.5 text-xs text-slate-400 hover:text-slate-600 mb-3 transition-colors font-medium"
+        >
+          <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
           </svg>
-          All pipelines
+          Pipelines
         </Link>
-        <h2 className="font-bold text-slate-900 text-sm leading-snug">{find.role_title}</h2>
-        <div className="flex flex-wrap gap-1.5 mt-2">
-          <span className="text-[10px] bg-indigo-100 text-indigo-700 font-semibold px-2 py-0.5 rounded-full">
+        <p className="font-bold text-slate-900 text-sm leading-tight">{find.role_title}</p>
+        <div className="flex flex-wrap gap-1 mt-1.5">
+          <span className="text-[10px] bg-indigo-50 text-indigo-600 font-semibold px-1.5 py-0.5 rounded">
             {EMPLOYMENT_TYPE_LABELS[find.employment_type]}
           </span>
-          <span className="text-[10px] bg-slate-100 text-slate-600 font-semibold px-2 py-0.5 rounded-full">
+          <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded">
             {WORK_ARRANGEMENT_LABELS[find.work_arrangement]}
           </span>
         </div>
       </div>
 
-      <nav className="flex-1 p-3 overflow-y-auto space-y-0.5">
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mb-2">View</p>
-
-        <button
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto p-2">
+        {/* All */}
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
+          label="All Candidates"
+          count={requests.filter((r) => !r.archived).length}
+          active={activeFilter === 'all'}
           onClick={() => { setActiveFilter('all'); setSidebarOpen(false) }}
-          className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeFilter === 'all' ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-        >
-          <span>All Candidates</span>
-          <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${activeFilter === 'all' ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-            {requests.filter((r) => !r.archived).length}
-          </span>
-        </button>
+        />
 
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mt-4 mb-2">Stages</p>
-        {STAGES.map((s) => (
-          <button
-            key={s}
-            onClick={() => { setActiveFilter(s); setSidebarOpen(false) }}
-            className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-sm font-semibold transition-colors ${activeFilter === s ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-          >
-            <span>{STAGE_LABELS[s]}</span>
-            <span className={`text-xs font-black px-1.5 py-0.5 rounded-md ${activeFilter === s ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>
-              {stageCounts[s]}
-            </span>
-          </button>
-        ))}
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Stages</p>
 
-        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest px-2 mt-4 mb-2">Filters</p>
-        <div className="px-2 space-y-3">
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
+          label="Discovered"
+          count={stageCounts['discovered']}
+          active={activeFilter === 'discovered'}
+          onClick={() => { setActiveFilter('discovered'); setSidebarOpen(false) }}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>}
+          label="Interested"
+          count={stageCounts['interested']}
+          active={activeFilter === 'interested'}
+          onClick={() => { setActiveFilter('interested'); setSidebarOpen(false) }}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
+          label="Interview"
+          count={stageCounts['interview']}
+          active={activeFilter === 'interview'}
+          onClick={() => { setActiveFilter('interview'); setSidebarOpen(false) }}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
+          label="Offer"
+          count={stageCounts['offer']}
+          active={activeFilter === 'offer'}
+          onClick={() => { setActiveFilter('offer'); setSidebarOpen(false) }}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>}
+          label="Hired"
+          count={stageCounts['hired']}
+          active={activeFilter === 'hired'}
+          onClick={() => { setActiveFilter('hired'); setSidebarOpen(false) }}
+        />
+
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Filter</p>
+        <div className="px-2 space-y-2.5">
           <div>
-            <p className="text-xs text-slate-500 font-medium mb-1.5">Min star rating</p>
-            <div className="flex gap-1.5 flex-wrap">
+            <p className="text-[10px] text-slate-400 font-medium mb-1">Min stars</p>
+            <div className="flex gap-1">
               {[0, 3, 4, 5].map((v) => (
                 <button
                   key={v}
                   onClick={() => setStarFilter(v)}
-                  className={`text-xs px-2.5 py-1 rounded-lg font-semibold transition-colors ${starFilter === v ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                  className={`flex-1 text-[10px] py-1 rounded font-semibold transition-colors ${starFilter === v ? 'bg-amber-400 text-white' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
                 >
                   {v === 0 ? 'Any' : `${v}+★`}
                 </button>
@@ -457,29 +528,42 @@ export default function PipelinePage() {
             </div>
           </div>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="accent-indigo-600 w-4 h-4" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} />
-            <span className="text-xs text-slate-600 font-medium">Verified only</span>
+            <input type="checkbox" className="accent-indigo-600 w-3.5 h-3.5" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} />
+            <span className="text-[11px] text-slate-500 font-medium">Verified only</span>
           </label>
           <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="accent-slate-600 w-4 h-4" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-            <span className="text-xs text-slate-600 font-medium">Show archived</span>
+            <input type="checkbox" className="accent-slate-500 w-3.5 h-3.5" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+            <span className="text-[11px] text-slate-500 font-medium">Show archived</span>
           </label>
         </div>
       </nav>
+
+      {/* Job settings button */}
+      <div className="p-2 border-t border-slate-100">
+        <button
+          onClick={() => setSettingsOpen(true)}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Job settings
+        </button>
+      </div>
     </div>
   )
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-[calc(100vh-3.5rem)] bg-slate-50">
 
       {/* Desktop sidebar */}
-      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-slate-200 fixed inset-y-0 left-0 z-20">
+      <aside className="hidden md:flex flex-col w-60 bg-white border-r border-slate-200 fixed top-14 bottom-0 left-0 z-30">
         {sidebarContent}
       </aside>
 
       {/* Mobile sidebar overlay */}
       {sidebarOpen && (
-        <div className="md:hidden fixed inset-0 z-40 flex">
+        <div className="md:hidden fixed inset-0 z-[60] flex">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSidebarOpen(false)} />
           <aside className="relative w-64 bg-white border-r border-slate-200 flex flex-col h-full overflow-hidden">
             {sidebarContent}
@@ -491,7 +575,7 @@ export default function PipelinePage() {
       <div className="flex-1 md:pl-60 flex flex-col min-h-screen">
 
         {/* Mobile top bar */}
-        <div className="md:hidden flex items-center gap-3 bg-white border-b border-slate-200 px-4 h-14 sticky top-0 z-30">
+        <div className="md:hidden flex items-center gap-3 bg-white border-b border-slate-200 px-4 h-14 sticky top-0 z-40">
           <button onClick={() => setSidebarOpen(true)} className="text-slate-500">
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
@@ -555,7 +639,7 @@ export default function PipelinePage() {
           {selectedRequest && find && (
             <>
               {/* Mobile full-screen */}
-              <div className="md:hidden fixed inset-0 z-50 bg-white overflow-y-auto">
+              <div className="md:hidden fixed inset-0 z-[70] bg-white overflow-y-auto">
                 <CandidatePanel
                   request={selectedRequest}
                   find={find}
@@ -583,6 +667,77 @@ export default function PipelinePage() {
           )}
         </div>
       </div>
+
+      {/* Job settings modal */}
+      {settingsOpen && find && (
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSettingsOpen(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100">
+              <div>
+                <h3 className="font-bold text-slate-900">Job Settings</h3>
+                <p className="text-xs text-slate-500 mt-0.5">{find.role_title} · {EMPLOYMENT_TYPE_LABELS[find.employment_type]} · {WORK_ARRANGEMENT_LABELS[find.work_arrangement]}</p>
+              </div>
+              <button onClick={() => setSettingsOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="overflow-y-auto p-5 space-y-4 flex-1">
+              {find.salary_min || find.salary_max ? (
+                <div className="flex gap-4 text-sm">
+                  <div><span className="text-slate-400 text-xs font-medium">Salary</span><p className="font-semibold text-slate-800">${(find.salary_min ?? 0).toLocaleString()} – ${(find.salary_max ?? 0).toLocaleString()}</p></div>
+                  {(find.min_experience || find.max_experience) && (
+                    <div><span className="text-slate-400 text-xs font-medium">Experience</span><p className="font-semibold text-slate-800">{find.min_experience ?? 0}–{find.max_experience ?? '∞'} yrs</p></div>
+                  )}
+                </div>
+              ) : null}
+              {find.skills?.length > 0 && (
+                <div>
+                  <p className="text-xs font-medium text-slate-400 mb-1.5">Skills</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {find.skills.map((s) => <span key={s} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">{s}</span>)}
+                  </div>
+                </div>
+              )}
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Job Description</label>
+                <textarea
+                  rows={6}
+                  className="input-base w-full resize-none text-sm"
+                  value={editDesc}
+                  onChange={(e) => setEditDesc(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Requirements</label>
+                <textarea
+                  rows={4}
+                  className="input-base w-full resize-none text-sm"
+                  placeholder="Additional requirements, process details…"
+                  value={editReqs}
+                  onChange={(e) => setEditReqs(e.target.value)}
+                />
+              </div>
+              {(find.custom_questions as string[])?.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Screening Questions</p>
+                  <ol className="space-y-1.5 list-decimal list-inside">
+                    {(find.custom_questions as string[]).map((q, i) => (
+                      <li key={i} className="text-sm text-slate-700">{q}</li>
+                    ))}
+                  </ol>
+                </div>
+              )}
+            </div>
+            <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
+              <button onClick={() => setSettingsOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button onClick={saveSettings} disabled={savingSettings} className="btn-primary flex-1 disabled:opacity-60">
+                {savingSettings ? 'Saving…' : 'Save Changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

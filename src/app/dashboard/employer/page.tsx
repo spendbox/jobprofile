@@ -166,7 +166,7 @@ export default function EmployerDashboard() {
           {' '}
           <span className="text-slate-400 font-normal text-sm">({visibleFinds.length})</span>
         </h2>
-        {archivedFinds.length > 0 && (
+        {(showArchived || archivedFinds.length > 0) && (
           <button
             onClick={() => setShowArchived((v) => !v)}
             className={`text-xs px-3 py-1.5 rounded-xl font-semibold transition-colors ${

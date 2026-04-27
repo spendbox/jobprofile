@@ -71,19 +71,38 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: findErr?.message ?? 'Insert failed' }, { status: 500 })
   }
 
-  // 2. Rule-filter profiles: match role, skills, experience, available
-  let profileQuery = supabase
-    .from('profiles')
-    .select('id, role_title, skills, years_experience, bio, user_profiles!profiles_user_id_user_profiles_fkey(full_name, is_verified)')
-    .neq('availability_status', 'not_looking')
-    .limit(60)
+  // 2. Rule-filter profiles — progressive fallback so we always find candidates
+  const baseQuery = () =>
+    supabase
+      .from('profiles')
+      .select('id, role_title, skills, years_experience, bio')
+      .neq('availability_status', 'not_looking')
+      .limit(60)
 
-  if (role_title) profileQuery = profileQuery.ilike('role_title', `%${role_title}%`)
-  if ((skills ?? []).length > 0) profileQuery = profileQuery.overlaps('skills', skills)
-  if (min_experience) profileQuery = profileQuery.gte('years_experience', min_experience)
-  if (max_experience) profileQuery = profileQuery.lte('years_experience', max_experience)
+  const applyExpFilters = (q: ReturnType<typeof baseQuery>) => {
+    if (min_experience) q = q.gte('years_experience', min_experience)
+    if (max_experience) q = q.lte('years_experience', max_experience)
+    return q
+  }
 
-  const { data: profiles } = await profileQuery
+  // Attempt 1: role + skills + experience
+  let { data: profiles } = await applyExpFilters(
+    (skills ?? []).length > 0
+      ? baseQuery().ilike('role_title', `%${role_title}%`).overlaps('skills', skills)
+      : baseQuery().ilike('role_title', `%${role_title}%`)
+  )
+
+  // Attempt 2: role only (drop skills)
+  if (!profiles || profiles.length === 0) {
+    ;({ data: profiles } = await applyExpFilters(
+      baseQuery().ilike('role_title', `%${role_title}%`)
+    ))
+  }
+
+  // Attempt 3: any available profiles (drop role filter too)
+  if (!profiles || profiles.length === 0) {
+    ;({ data: profiles } = await baseQuery())
+  }
 
   if (!profiles || profiles.length === 0) {
     return NextResponse.json({ talent_find_id: find.id, candidate_count: 0 })
