@@ -47,7 +47,7 @@ export default function RequestsPage() {
       } else {
         const { data, error } = await supabase
           .from('interview_requests')
-          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), opening:job_openings(*)')
+          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
           .eq('employer_id', userProfile.id)
           .order('created_at', { ascending: false })
         if (error) console.error('requests error', error)

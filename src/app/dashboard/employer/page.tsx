@@ -33,10 +33,10 @@ export default function EmployerDashboard() {
     if (userProfile.user_role === 'talent') { router.push('/dashboard/talent'); return }
 
     const loadData = async () => {
-      const [{ data: reqData, error: reqErr }, { data: openingData }] = await Promise.all([
+      const [reqResult, openingResult] = await Promise.all([
         supabase
           .from('interview_requests')
-          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), opening:job_openings(*)')
+          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
           .eq('employer_id', userProfile.id)
           .order('created_at', { ascending: false }),
         supabase
@@ -45,9 +45,18 @@ export default function EmployerDashboard() {
           .eq('employer_id', userProfile.id)
           .order('created_at', { ascending: false }),
       ])
-      if (reqErr) console.error('employer dashboard error', reqErr)
-      if (reqData) setRequests(reqData as InterviewRequest[])
-      if (openingData) setOpenings(openingData as JobOpening[])
+
+      const loadedOpenings = (openingResult.data ?? []) as JobOpening[]
+      setOpenings(loadedOpenings)
+
+      if (reqResult.error) console.error('employer dashboard error', reqResult.error)
+      if (reqResult.data) {
+        const enriched = reqResult.data.map((r) => ({
+          ...r,
+          opening: loadedOpenings.find((o) => o.id === (r as { opening_id?: string }).opening_id),
+        }))
+        setRequests(enriched as InterviewRequest[])
+      }
       setLoading(false)
     }
 
