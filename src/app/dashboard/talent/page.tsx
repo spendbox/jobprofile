@@ -8,49 +8,11 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
-import { SkillTag } from '@/components/ui/SkillTag'
-import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
-import type { TalentProfile, AvailabilityStatus, InterviewRequest, TalentFind, UserProfile, RequestStage } from '@/types'
-import { AVAILABILITY_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS, STAGE_LABELS } from '@/types'
+import { timeAgo } from '@/lib/utils'
+import type { TalentProfile, InterviewRequest, TalentFind, UserProfile, RequestStage } from '@/types'
+import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS, STAGE_LABELS } from '@/types'
 
 const PIPELINE_STAGES: RequestStage[] = ['interested', 'interview', 'offer', 'hired']
-
-// ─── AvailabilityToggle ───────────────────────────────────────────────────────
-function AvailabilityToggle({
-  profile,
-  onToggle,
-}: {
-  profile: TalentProfile
-  onToggle: (status: AvailabilityStatus) => void
-}) {
-  const isAvailable = profile.availability_status !== 'not_looking'
-  return (
-    <div className="mt-5 pt-5 border-t border-slate-100">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-semibold text-slate-700">
-            {isAvailable ? 'Available' : 'Not Available'}
-          </p>
-          <p className="text-xs text-slate-400 mt-0.5">Updated {timeAgo(profile.availability_updated_at)}</p>
-        </div>
-        <button
-          role="switch"
-          aria-checked={isAvailable}
-          onClick={() => onToggle(isAvailable ? 'not_looking' : 'available')}
-          className={`relative inline-flex w-12 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
-            isAvailable ? 'bg-emerald-500' : 'bg-slate-200'
-          }`}
-        >
-          <span
-            className={`inline-block w-5 h-5 bg-white rounded-full shadow-sm transition-transform mt-0.5 ${
-              isAvailable ? 'translate-x-6' : 'translate-x-0.5'
-            }`}
-          />
-        </button>
-      </div>
-    </div>
-  )
-}
 
 // ─── RequestModal ─────────────────────────────────────────────────────────────
 function RequestModal({
@@ -58,11 +20,13 @@ function RequestModal({
   onClose,
   onRespond,
   responding,
+  isViewOnly = false,
 }: {
   request: InterviewRequest
   onClose: () => void
   onRespond: (id: string, decision: 'accepted' | 'declined', answers: Record<string, string>) => void
   responding: boolean
+  isViewOnly?: boolean
 }) {
   const find = request.talent_find as TalentFind | undefined
   const employer = request.employer as unknown as UserProfile | undefined
@@ -75,6 +39,8 @@ function RequestModal({
 
   const allAnswered = questions.every((_, i) => (answers[`q${i}`] ?? '').trim().length > 0)
   const canAccept = questions.length === 0 || allAnswered
+
+  const stageIdx = PIPELINE_STAGES.indexOf(request.stage)
 
   const salaryText = find && (find.salary_min || find.salary_max)
     ? `$${(find.salary_min ?? 0).toLocaleString()}${find.salary_max ? ` – $${find.salary_max.toLocaleString()}` : '+'}`
@@ -146,9 +112,9 @@ function RequestModal({
           {questions.length > 0 && (
             <div className="space-y-3">
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
-                Screening questions <span className="text-red-500">*</span>
+                Screening questions {!isViewOnly && <span className="text-red-500">*</span>}
               </p>
-              <p className="text-xs text-slate-400">Answer all questions to express interest.</p>
+              {!isViewOnly && <p className="text-xs text-slate-400">Answer all questions to express interest.</p>}
               {questions.map((q, i) => {
                 const key = `q${i}`
                 return (
@@ -156,37 +122,70 @@ function RequestModal({
                     <label className="text-sm text-slate-700 font-medium block">
                       {i + 1}. {q}
                     </label>
-                    <textarea
-                      rows={2}
-                      className="input-base w-full resize-none text-sm"
-                      placeholder="Your answer…"
-                      value={answers[key] ?? ''}
-                      onChange={(e) => setAnswers((prev) => ({ ...prev, [key]: e.target.value }))}
-                    />
+                    {isViewOnly ? (
+                      <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                        {existingAnswers[key] || <span className="text-slate-400 italic">No answer provided</span>}
+                      </p>
+                    ) : (
+                      <textarea
+                        rows={2}
+                        className="input-base w-full resize-none text-sm"
+                        placeholder="Your answer…"
+                        value={answers[key] ?? ''}
+                        onChange={(e) => setAnswers((prev) => ({ ...prev, [key]: e.target.value }))}
+                      />
+                    )}
                   </div>
                 )
               })}
+            </div>
+          )}
+
+          {/* Stage progress (view-only) */}
+          {isViewOnly && stageIdx >= 0 && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your stage</p>
+              <div className="flex items-center gap-1 mb-1">
+                {PIPELINE_STAGES.map((s, i) => (
+                  <div key={s} className={`h-2 rounded-full flex-1 transition-colors ${i <= stageIdx ? 'bg-indigo-500' : 'bg-slate-200'}`} title={STAGE_LABELS[s]} />
+                ))}
+              </div>
+              <div className="flex justify-between">
+                {PIPELINE_STAGES.map((s, i) => (
+                  <span key={s} className={`text-[9px] font-medium ${i <= stageIdx ? 'text-indigo-500' : 'text-slate-300'}`}>
+                    {STAGE_LABELS[s]}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </div>
 
         {/* Footer actions */}
         <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
-          <button
-            onClick={() => onRespond(request.id, 'declined', answers)}
-            disabled={responding}
-            className="flex-1 text-sm px-4 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors disabled:opacity-50"
-          >
-            Not Interested
-          </button>
-          <button
-            onClick={() => onRespond(request.id, 'accepted', answers)}
-            disabled={responding || !canAccept}
-            className="flex-1 text-sm px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-            title={!canAccept ? 'Answer all questions to continue' : undefined}
-          >
-            {responding ? 'Saving…' : "I'm Interested →"}
-          </button>
+          {isViewOnly ? (
+            <button onClick={onClose} className="flex-1 text-sm px-4 py-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors">
+              Close
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => onRespond(request.id, 'declined', answers)}
+                disabled={responding}
+                className="flex-1 text-sm px-4 py-3 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors disabled:opacity-50"
+              >
+                Not Interested
+              </button>
+              <button
+                onClick={() => onRespond(request.id, 'accepted', answers)}
+                disabled={responding || !canAccept}
+                className="flex-1 text-sm px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                title={!canAccept ? 'Answer all questions to continue' : undefined}
+              >
+                {responding ? 'Saving…' : "I'm Interested →"}
+              </button>
+            </>
+          )}
         </div>
       </div>
     </div>
@@ -222,6 +221,7 @@ export default function TalentDashboard() {
   const [isVerified, setIsVerified] = useState(false)
   const [loading, setLoading] = useState(true)
   const [selectedRequest, setSelectedRequest] = useState<InterviewRequest | null>(null)
+  const [selectedActiveRequest, setSelectedActiveRequest] = useState<InterviewRequest | null>(null)
   const [responding, setResponding] = useState<string | null>(null)
 
 
@@ -264,16 +264,6 @@ export default function TalentDashboard() {
     }
     load()
   }, [userProfile, loadingAuth, router, supabase])
-
-  const toggleAvailability = async (profile: TalentProfile, status: AvailabilityStatus) => {
-    const { data } = await supabase
-      .from('profiles')
-      .update({ availability_status: status, availability_updated_at: new Date().toISOString() })
-      .eq('id', profile.id)
-      .select()
-      .single()
-    if (data) setProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, ...data } : p)))
-  }
 
   const handleRespond = async (requestId: string, decision: 'accepted' | 'declined', answers: Record<string, string>) => {
     setResponding(requestId)
@@ -362,9 +352,6 @@ export default function TalentDashboard() {
                 {pendingRequests.length} Interview {pendingRequests.length === 1 ? 'Request' : 'Requests'}
               </h2>
             </div>
-            <Link href="/requests" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-              View history →
-            </Link>
           </div>
           <div className="space-y-3">
             {pendingRequests.map((req) => {
@@ -422,7 +409,7 @@ export default function TalentDashboard() {
               const roleTitle = find?.role_title ?? 'Role'
               const stageIdx = PIPELINE_STAGES.indexOf(req.stage)
               return (
-                <div key={req.id} className="card p-4">
+                <button key={req.id} onClick={() => setSelectedActiveRequest(req)} className="w-full text-left card p-4 hover:border-indigo-200 hover:shadow-sm transition-all">
                   <div className="flex items-start gap-3">
                     <Avatar name={companyName} size="sm" />
                     <div className="flex-1 min-w-0">
@@ -458,89 +445,49 @@ export default function TalentDashboard() {
                       </div>
                     </div>
                   </div>
-                </div>
+                </button>
               )
             })}
           </div>
         </div>
       )}
 
-      {/* ── Profiles list ── */}
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <p className="section-label mb-0.5">Profiles</p>
-          <h2 className="text-lg font-bold text-slate-900">
-            {profiles.length === 0 ? 'No profiles yet' : `${profiles.length} Role Profile${profiles.length !== 1 ? 's' : ''}`}
-          </h2>
-        </div>
-        <Link href="/dashboard/talent/profiles" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-          Manage →
-        </Link>
-      </div>
-
-      {profiles.length === 0 ? (
-        <div className="card p-12 text-center">
+      {/* Empty state when no inbox and no pipeline */}
+      {pendingRequests.length === 0 && activeRequests.length === 0 && (
+        <div className="card p-14 text-center">
           <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
             <svg className="w-7 h-7 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4" />
             </svg>
           </div>
-          <p className="font-bold text-slate-900 text-base">No profiles yet</p>
-          <p className="text-sm text-slate-500 mt-2 mb-6 max-w-xs mx-auto">Create your first role profile to get discovered by employers.</p>
-          <Link href="/dashboard/talent/profiles" className="btn-primary mx-auto">
+          <p className="font-bold text-slate-900 text-base">No activity yet</p>
+          <p className="text-sm text-slate-500 mt-2 max-w-xs mx-auto">
+            Employer interview requests will appear here once you have a profile.
+          </p>
+          <Link href="/dashboard/talent/profiles" className="btn-primary mx-auto mt-6">
             Create Profile
           </Link>
         </div>
-      ) : (
-        <div className="space-y-4">
-          {profiles.map((profile) => (
-            <div key={profile.id} className="card overflow-hidden">
-              <div className={`h-1 ${profile.availability_status !== 'not_looking' ? 'bg-emerald-400' : 'bg-slate-300'}`} />
-              <div className="p-5">
-                <div className="flex items-start justify-between gap-3 mb-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-bold text-slate-900 text-base leading-snug truncate">{profile.role_title}</h3>
-                    <span className={`inline-flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-full mt-2 ${availabilityColor(profile.availability_status)}`}>
-                      <span className={`w-1.5 h-1.5 rounded-full ${availabilityDot(profile.availability_status)}`} />
-                      {AVAILABILITY_LABELS[profile.availability_status]}
-                    </span>
-                  </div>
-                  <Link href="/dashboard/talent/profiles" className="btn-ghost p-2 rounded-xl flex-shrink-0" title="Manage profiles">
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                    </svg>
-                  </Link>
-                </div>
-
-                {profile.bio && (
-                  <p className="text-sm text-slate-600 leading-relaxed line-clamp-2 mb-3">{profile.bio}</p>
-                )}
-
-                {profile.skills.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    {profile.skills.slice(0, 5).map((s) => <SkillTag key={s} skill={s} />)}
-                    {profile.skills.length > 5 && (
-                      <span className="text-xs text-slate-400 self-center">+{profile.skills.length - 5}</span>
-                    )}
-                  </div>
-                )}
-
-                <div className="text-xs text-slate-500">{profile.profile_views} views</div>
-
-                <AvailabilityToggle profile={profile} onToggle={(s) => toggleAvailability(profile, s)} />
-              </div>
-            </div>
-          ))}
-        </div>
       )}
 
-      {/* Request detail modal */}
+      {/* Pending request modal */}
       {selectedRequest && (
         <RequestModal
           request={selectedRequest}
           onClose={() => setSelectedRequest(null)}
           onRespond={handleRespond}
           responding={responding === selectedRequest.id}
+        />
+      )}
+
+      {/* Active opportunity detail modal */}
+      {selectedActiveRequest && (
+        <RequestModal
+          request={selectedActiveRequest}
+          onClose={() => setSelectedActiveRequest(null)}
+          onRespond={() => {}}
+          responding={false}
+          isViewOnly
         />
       )}
 

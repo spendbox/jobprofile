@@ -26,11 +26,12 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Determine which profile_ids already have an IR for this employer
   const { data: existing } = await supabase
     .from('interview_requests')
-    .select('profile_id')
+    .select('profile_id, status')
     .eq('employer_id', user.id)
     .in('profile_id', profile_ids)
 
-  const existingSet = new Set((existing ?? []).map((e: { profile_id: string }) => e.profile_id))
+  const existingRows = existing ?? []
+  const existingSet = new Set(existingRows.map((e: { profile_id: string }) => e.profile_id))
   const brandNew = profile_ids.filter((pid: string) => !existingSet.has(pid))
   const alreadyExist = profile_ids.filter((pid: string) => existingSet.has(pid))
 
@@ -49,13 +50,31 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
   }
 
-  // Re-associate existing IRs to this pipeline so they appear in the stage view
+  // Re-associate existing IRs to this pipeline.
+  // Still-pending: just update the pipeline link.
+  // Already responded (accepted/declined): reset to pending so talent must actively accept the new invite.
   if (alreadyExist.length > 0) {
-    await supabase
-      .from('interview_requests')
-      .update({ talent_find_id: id })
-      .eq('employer_id', user.id)
-      .in('profile_id', alreadyExist)
+    const stillPending = existingRows
+      .filter((r: { profile_id: string; status: string }) => r.status === 'pending')
+      .map((r: { profile_id: string }) => r.profile_id)
+    const alreadyResponded = existingRows
+      .filter((r: { profile_id: string; status: string }) => r.status !== 'pending')
+      .map((r: { profile_id: string }) => r.profile_id)
+
+    if (stillPending.length > 0) {
+      await supabase
+        .from('interview_requests')
+        .update({ talent_find_id: id })
+        .eq('employer_id', user.id)
+        .in('profile_id', stillPending)
+    }
+    if (alreadyResponded.length > 0) {
+      await supabase
+        .from('interview_requests')
+        .update({ talent_find_id: id, status: 'pending', stage: 'discovered', question_answers: null })
+        .eq('employer_id', user.id)
+        .in('profile_id', alreadyResponded)
+    }
   }
 
   // Mark as contacted in talent_find_candidates
