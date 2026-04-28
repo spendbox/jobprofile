@@ -102,6 +102,8 @@ export interface TalentFindCandidate {
   ai_score: number
   ai_summary?: string
   contacted: boolean
+  star_rating?: number
+  notes?: string
   created_at: string
   profiles?: TalentProfile & { user_profiles?: UserProfile }
 }

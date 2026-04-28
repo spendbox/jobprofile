@@ -164,34 +164,16 @@ ${candidateList}`
   }
   scoredCandidates = Array.from(bestPerUser.values()).sort((a, b) => b.score - a.score)
 
-  // 4. Insert talent_find_candidates + auto-send interview_requests to all matches
+  // 4. Insert talent_find_candidates — employer invites manually via /contact
   if (scoredCandidates.length > 0) {
     const candidateRows = scoredCandidates.map((c) => ({
       talent_find_id: find.id,
       profile_id: c.profile_id,
       ai_score: Math.max(0, Math.min(100, c.score)),
       ai_summary: c.summary ?? null,
-      contacted: true,
+      contacted: false,
     }))
     await supabase.from('talent_find_candidates').upsert(candidateRows, { onConflict: 'talent_find_id,profile_id' })
-
-    const requestRows = scoredCandidates.map((c) => ({
-      employer_id: user.id,
-      profile_id: c.profile_id,
-      talent_find_id: find.id,
-      status: 'pending',
-      stage: 'discovered',
-    }))
-    await supabase.from('interview_requests').upsert(requestRows, { onConflict: 'employer_id,profile_id', ignoreDuplicates: true })
-
-    // Backfill talent_find_id on any pre-existing requests that were skipped by ignoreDuplicates
-    const profileIds = scoredCandidates.map((c) => c.profile_id)
-    await supabase
-      .from('interview_requests')
-      .update({ talent_find_id: find.id })
-      .eq('employer_id', user.id)
-      .in('profile_id', profileIds)
-      .is('talent_find_id', null)
   }
 
   return NextResponse.json({ talent_find_id: find.id, candidate_count: scoredCandidates.length })
