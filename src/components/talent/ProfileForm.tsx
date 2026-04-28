@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { TIMEZONES } from '@/types'
-import type { TalentProfile, AvailabilityStatus, PortfolioItem, CVData } from '@/types'
+import type { TalentProfile, PortfolioItem, CVData } from '@/types'
 
 interface ProfileFormProps {
   userId: string
@@ -13,11 +12,6 @@ interface ProfileFormProps {
   onSaved: (profile: TalentProfile) => void
   onCancel: () => void
 }
-
-const AVAILABILITY_OPTIONS: { value: AvailabilityStatus; label: string; desc: string }[] = [
-  { value: 'available', label: 'Available Now', desc: 'Actively looking, available to start immediately' },
-  { value: 'not_looking', label: 'Not Available', desc: 'Not seeking new opportunities right now' },
-]
 
 const STEP_LABELS = ['The Role', 'CV & Skills', 'Availability', 'Portfolio']
 
@@ -152,6 +146,47 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
   const togglePortfolioItem = (id: string) => {
     const current = form.portfolio_item_ids
     set('portfolio_item_ids', current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
+  }
+
+  const handleAddPortfolioItem = async () => {
+    if (!addLabel.trim()) { setAddError('Label is required'); return }
+    if ((addType === 'link' || addType === 'video') && !addUrl.trim()) { setAddError('URL is required'); return }
+    if ((addType === 'image' || addType === 'document') && !addFile) { setAddError('Please select a file'); return }
+    setAdding(true); setAddError('')
+    try {
+      let file_path: string | undefined, file_url: string | undefined, external_url: string | undefined
+      if (addType === 'link' || addType === 'video') {
+        external_url = addUrl.trim()
+      } else if (addFile) {
+        const ext = addFile.name.split('.').pop()?.toLowerCase() ?? ''
+        const mimeMap: Record<string, string> = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+          pdf: 'application/pdf', doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }
+        const contentType = addFile.type || mimeMap[ext] || 'application/octet-stream'
+        const path = `${userId}/${Date.now()}_${addFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+        const { error: uploadErr } = await supabase.storage.from('portfolio').upload(path, addFile, { contentType, upsert: true })
+        if (uploadErr) throw new Error(uploadErr.message)
+        const { data: pub } = supabase.storage.from('portfolio').getPublicUrl(path)
+        file_path = path; file_url = pub.publicUrl
+      }
+      const { data: newItem, error: dbErr } = await supabase
+        .from('portfolio_items')
+        .insert({ user_id: userId, label: addLabel.trim(), type: addType, file_path, file_url, external_url })
+        .select().single()
+      if (dbErr) throw new Error(dbErr.message)
+      if (newItem) {
+        setPortfolioItems((prev) => [newItem as PortfolioItem, ...prev])
+        set('portfolio_item_ids', [...form.portfolio_item_ids, (newItem as PortfolioItem).id])
+      }
+      setAddLabel(''); setAddUrl(''); setAddFile(null); setShowPortfolioAdd(false)
+      if (portfolioFileRef.current) portfolioFileRef.current.value = ''
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to add item')
+    } finally {
+      setAdding(false)
+    }
   }
 
   const handleCvSelect = async (file: File) => {
@@ -593,57 +628,80 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
 
         {/* ── Step 4: Portfolio ──────────────────────────────────────────── */}
         {step === 4 && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-black text-slate-900 mb-1">Work Samples</h2>
-              <p className="text-sm text-slate-500">Pick items from your portfolio to show on this profile. You can always add or update these later from your dashboard.</p>
+              <p className="text-sm text-slate-500">Add portfolio items and select which ones to show on this profile.</p>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="label mb-0">Portfolio Items</label>
-                <Link href="/dashboard/talent/portfolio" target="_blank" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                  Manage Portfolio ↗
-                </Link>
-              </div>
-
-              {portfolioItems.length === 0 ? (
-                <div className="border border-dashed border-slate-300 rounded-xl p-6 text-center">
-                  <p className="text-sm text-slate-500 mb-3">No portfolio items yet.</p>
-                  <Link href="/dashboard/talent/portfolio" target="_blank" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                    Add items to your portfolio →
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+            {/* Existing items checklist */}
+            {portfolioItems.length > 0 && (
+              <div>
+                <label className="label mb-3">Select items to show</label>
+                <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                   {portfolioItems.map((item) => {
                     const checked = form.portfolio_item_ids.includes(item.id)
                     return (
-                      <label
-                        key={item.id}
-                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${
-                          checked ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePortfolioItem(item.id)}
-                          className="accent-indigo-600 flex-shrink-0"
-                        />
+                      <label key={item.id} className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <input type="checkbox" checked={checked} onChange={() => togglePortfolioItem(item.id)} className="accent-indigo-600 flex-shrink-0" />
                         <span className="text-slate-400 flex-shrink-0">{PORTFOLIO_TYPE_ICON[item.type]}</span>
                         <span className="text-xs font-medium text-slate-800 truncate">{item.label}</span>
                       </label>
                     )
                   })}
                 </div>
-              )}
-              {form.portfolio_item_ids.length > 0 && (
-                <p className="text-xs text-indigo-600 font-medium mt-2">
-                  {form.portfolio_item_ids.length} item{form.portfolio_item_ids.length !== 1 ? 's' : ''} selected
-                </p>
-              )}
-            </div>
+                {form.portfolio_item_ids.length > 0 && (
+                  <p className="text-xs text-indigo-600 font-medium mt-2">{form.portfolio_item_ids.length} item{form.portfolio_item_ids.length !== 1 ? 's' : ''} selected</p>
+                )}
+              </div>
+            )}
+
+            {/* Add new item inline */}
+            {!showPortfolioAdd ? (
+              <button onClick={() => setShowPortfolioAdd(true)} className="btn-secondary w-full">
+                + Add Portfolio Item
+              </button>
+            ) : (
+              <div className="border border-slate-200 rounded-2xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-slate-900">New Portfolio Item</p>
+
+                {/* Type selector */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {(['link', 'image', 'document', 'video'] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => setAddType(t)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${addType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                <input className="input-base text-sm" placeholder="Label (e.g. My GitHub, Design Portfolio)" value={addLabel} onChange={(e) => setAddLabel(e.target.value)} />
+
+                {(addType === 'link' || addType === 'video') ? (
+                  <input className="input-base text-sm" placeholder="URL" value={addUrl} onChange={(e) => setAddUrl(e.target.value)} />
+                ) : (
+                  <div>
+                    <input ref={portfolioFileRef} type="file"
+                      accept={addType === 'image' ? '.jpg,.jpeg,.png,.webp,.gif' : '.pdf,.doc,.docx'}
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) setAddFile(f) }}
+                    />
+                    <button onClick={() => portfolioFileRef.current?.click()} className="btn-secondary w-full text-sm">
+                      {addFile ? addFile.name : `Choose ${addType === 'image' ? 'image' : 'document'}`}
+                    </button>
+                  </div>
+                )}
+
+                {addError && <p className="text-xs text-red-600">{addError}</p>}
+
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowPortfolioAdd(false); setAddLabel(''); setAddUrl(''); setAddFile(null); setAddError('') }} className="btn-secondary flex-1 text-sm">Cancel</button>
+                  <button onClick={handleAddPortfolioItem} disabled={adding} className="btn-primary flex-1 text-sm disabled:opacity-50">
+                    {adding ? 'Adding…' : 'Add Item'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
