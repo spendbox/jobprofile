@@ -11,23 +11,139 @@ import { ProfileForm } from '@/components/talent/ProfileForm'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
-import type { TalentProfile, AvailabilityStatus } from '@/types'
-import { AVAILABILITY_LABELS } from '@/types'
+import type { TalentProfile, AvailabilityStatus, InterviewRequest, TalentFind, UserProfile } from '@/types'
+import { AVAILABILITY_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
 
 type ModalState = { type: 'create' } | { type: 'edit'; profile: TalentProfile } | null
 
+// ─── AvailabilityToggle ───────────────────────────────────────────────────────
+function AvailabilityToggle({
+  profile,
+  onToggle,
+}: {
+  profile: TalentProfile
+  onToggle: (status: AvailabilityStatus) => void
+}) {
+  const isAvailable = profile.availability_status !== 'not_looking'
+  return (
+    <div className="mt-5 pt-5 border-t border-slate-100">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-700">
+            {isAvailable ? 'Available' : 'Not Available'}
+          </p>
+          <p className="text-xs text-slate-400 mt-0.5">Updated {timeAgo(profile.availability_updated_at)}</p>
+        </div>
+        <button
+          role="switch"
+          aria-checked={isAvailable}
+          onClick={() => onToggle(isAvailable ? 'not_looking' : 'available')}
+          className={`relative inline-flex w-12 h-6 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+            isAvailable ? 'bg-emerald-500' : 'bg-slate-200'
+          }`}
+        >
+          <span
+            className={`inline-block w-5 h-5 bg-white rounded-full shadow-sm transition-transform mt-0.5 ${
+              isAvailable ? 'translate-x-6' : 'translate-x-0.5'
+            }`}
+          />
+        </button>
+      </div>
+    </div>
+  )
+}
+
+// ─── RequestCard ──────────────────────────────────────────────────────────────
+function RequestCard({
+  request,
+  onRespond,
+  responding,
+}: {
+  request: InterviewRequest
+  onRespond: (id: string, decision: 'accepted' | 'declined') => void
+  responding: boolean
+}) {
+  const find = request.talent_find as TalentFind | undefined
+  const employer = request.employer as unknown as UserProfile | undefined
+  const companyName = employer?.company_name ?? employer?.full_name ?? 'Employer'
+  const roleTitle = find?.role_title ?? 'Interview Request'
+
+  const salaryText = find && (find.salary_min || find.salary_max)
+    ? `$${(find.salary_min ?? 0).toLocaleString()}${find.salary_max ? ` – $${find.salary_max.toLocaleString()}` : '+'}`
+    : null
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="h-1 bg-amber-400" />
+      <div className="p-5">
+        <div className="flex items-start gap-3 mb-3">
+          <Avatar name={companyName} size="md" />
+          <div className="flex-1 min-w-0">
+            <p className="font-bold text-slate-900 leading-snug">{companyName}</p>
+            <p className="text-sm text-indigo-600 font-semibold mt-0.5">{roleTitle}</p>
+            {find && (
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded">
+                  {EMPLOYMENT_TYPE_LABELS[find.employment_type]}
+                </span>
+                <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded">
+                  {WORK_ARRANGEMENT_LABELS[find.work_arrangement]}
+                </span>
+                {salaryText && (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-semibold px-1.5 py-0.5 rounded">
+                    {salaryText}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          <span className="text-xs text-slate-400 flex-shrink-0">{timeAgo(request.created_at)}</span>
+        </div>
+
+        {request.message && (
+          <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2.5 mb-3 leading-relaxed">
+            &ldquo;{request.message}&rdquo;
+          </p>
+        )}
+
+        {find?.description && (
+          <p className="text-xs text-slate-500 line-clamp-2 mb-3 leading-relaxed">{find.description}</p>
+        )}
+
+        <div className="flex gap-2 pt-1">
+          <button
+            onClick={() => onRespond(request.id, 'declined')}
+            disabled={responding}
+            className="flex-1 text-sm px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 font-semibold transition-colors disabled:opacity-50"
+          >
+            Not Interested
+          </button>
+          <button
+            onClick={() => onRespond(request.id, 'accepted')}
+            disabled={responding}
+            className="flex-1 text-sm px-4 py-2.5 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-colors disabled:opacity-50"
+          >
+            {responding ? 'Saving…' : "I'm Interested →"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function TalentDashboard() {
   const router = useRouter()
   const supabase = createClient()
   const { userProfile, loadingAuth } = useAuth()
 
   const [profiles, setProfiles] = useState<TalentProfile[]>([])
-  const [requestCounts, setRequestCounts] = useState<Record<string, number>>({})
+  const [pendingRequests, setPendingRequests] = useState<InterviewRequest[]>([])
   const [isVerified, setIsVerified] = useState(false)
   const [modal, setModal] = useState<ModalState>(null)
   const [loading, setLoading] = useState(true)
   const [deleteId, setDeleteId] = useState<string | null>(null)
-  const [statsOpen, setStatsOpen] = useState(false)
+  const [responding, setResponding] = useState<string | null>(null)
 
   useEffect(() => {
     if (loadingAuth) return
@@ -42,18 +158,18 @@ export default function TalentDashboard() {
 
       setIsVerified(!!upData?.is_verified)
 
-      if (profileData) {
+      if (profileData && profileData.length > 0) {
         setProfiles(profileData as TalentProfile[])
         const ids = profileData.map((p) => p.id)
-        if (ids.length > 0) {
-          const { data: reqData } = await supabase
-            .from('interview_requests')
-            .select('profile_id')
-            .in('profile_id', ids)
-          const counts: Record<string, number> = {}
-          reqData?.forEach((r) => { counts[r.profile_id] = (counts[r.profile_id] ?? 0) + 1 })
-          setRequestCounts(counts)
-        }
+
+        // Fetch pending interview requests with employer + job details
+        const { data: reqData } = await supabase
+          .from('interview_requests')
+          .select('*, employer:user_profiles!ir_employer_user_profiles_fkey(*), talent_find:talent_finds(*)')
+          .in('profile_id', ids)
+          .eq('status', 'pending')
+          .order('created_at', { ascending: false })
+        setPendingRequests((reqData as InterviewRequest[]) ?? [])
       }
       setLoading(false)
     }
@@ -84,6 +200,21 @@ export default function TalentDashboard() {
     if (data) setProfiles((prev) => prev.map((p) => (p.id === profile.id ? { ...p, ...data } : p)))
   }
 
+  const handleRespond = async (requestId: string, decision: 'accepted' | 'declined') => {
+    setResponding(requestId)
+    const { data } = await supabase
+      .from('interview_requests')
+      .update({
+        status: decision,
+        stage: decision === 'accepted' ? 'interested' : 'discovered',
+      })
+      .eq('id', requestId)
+      .select()
+      .single()
+    if (data) setPendingRequests((prev) => prev.filter((r) => r.id !== requestId))
+    setResponding(null)
+  }
+
   if (loading) {
     return (
       <div className="page-container flex items-center justify-center min-h-64">
@@ -91,9 +222,6 @@ export default function TalentDashboard() {
       </div>
     )
   }
-
-  const totalViews = profiles.reduce((sum, p) => sum + p.profile_views, 0)
-  const totalRequests = Object.values(requestCounts).reduce((a, b) => a + b, 0)
 
   return (
     <div className="page-container">
@@ -117,14 +245,12 @@ export default function TalentDashboard() {
             <p className="text-sm text-slate-500 mt-0.5">Manage your role profiles</p>
           </div>
         </div>
-        <div className="flex items-center gap-2 sm:flex-col sm:items-end gap-y-2">
-          <button onClick={() => setModal({ type: 'create' })} className="btn-primary">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            New Profile
-          </button>
-        </div>
+        <button onClick={() => setModal({ type: 'create' })} className="btn-primary self-start sm:self-auto">
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+          </svg>
+          New Profile
+        </button>
       </div>
 
       {/* Unverified nudge */}
@@ -145,44 +271,34 @@ export default function TalentDashboard() {
         </div>
       )}
 
-      {/* Stats — collapsible on mobile, always-visible grid on desktop */}
-      <div className="mb-10">
-        {/* Mobile toggle */}
-        <button
-          onClick={() => setStatsOpen((o) => !o)}
-          className="sm:hidden w-full flex items-center justify-between px-5 py-3 card mb-2"
-        >
-          <div className="flex items-center gap-4 text-sm">
-            <span className="font-semibold text-slate-700">{profiles.length} profile{profiles.length !== 1 ? 's' : ''}</span>
-            <span className="text-slate-400">·</span>
-            <span className="text-slate-500">{totalViews} views</span>
-            <span className="text-slate-400">·</span>
-            <span className="text-slate-500">{totalRequests} requests</span>
-          </div>
-          <svg
-            className={`w-4 h-4 text-slate-400 transition-transform flex-shrink-0 ${statsOpen ? 'rotate-180' : ''}`}
-            fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-
-        {/* Expanded mobile stats / always-visible desktop grid */}
-        <div className={`grid grid-cols-3 gap-3 sm:gap-5 ${statsOpen ? 'grid' : 'hidden'} sm:grid`}>
-          {[
-            { label: 'Profiles', value: profiles.length },
-            { label: 'Total Views', value: totalViews },
-            { label: 'Requests', value: totalRequests },
-          ].map(({ label, value }) => (
-            <div key={label} className="card p-4 sm:p-6 text-center">
-              <p className="text-3xl sm:text-4xl font-black text-slate-900">{value.toLocaleString()}</p>
-              <p className="section-label mt-1 sm:mt-2">{label}</p>
+      {/* ── Pending Requests Inbox ── */}
+      {pendingRequests.length > 0 && (
+        <div className="mb-10">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <p className="section-label mb-0.5">Inbox</p>
+              <h2 className="text-lg font-bold text-slate-900">
+                {pendingRequests.length} Interview {pendingRequests.length === 1 ? 'Request' : 'Requests'}
+              </h2>
             </div>
-          ))}
+            <Link href="/requests" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
+              View history →
+            </Link>
+          </div>
+          <div className="space-y-4">
+            {pendingRequests.map((req) => (
+              <RequestCard
+                key={req.id}
+                request={req}
+                onRespond={handleRespond}
+                responding={responding === req.id}
+              />
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
-      {/* Profiles list */}
+      {/* ── Profiles list ── */}
       {profiles.length === 0 ? (
         <div className="card p-12 text-center">
           <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
@@ -200,9 +316,8 @@ export default function TalentDashboard() {
         <div className="space-y-5">
           {profiles.map((profile) => (
             <div key={profile.id} className="card overflow-hidden">
-              {/* Availability accent stripe */}
               <div className={`h-1 ${
-                profile.availability_status === 'available' || profile.availability_status === 'open' ? 'bg-emerald-400' : 'bg-slate-300'
+                profile.availability_status !== 'not_looking' ? 'bg-emerald-400' : 'bg-slate-300'
               }`} />
 
               <div className="p-5 sm:p-6">
@@ -251,14 +366,10 @@ export default function TalentDashboard() {
                   </div>
                 </div>
 
-                {/* Bio */}
                 {profile.bio && (
-                  <p className="text-sm text-slate-600 leading-relaxed line-clamp-2 mb-4">
-                    {profile.bio}
-                  </p>
+                  <p className="text-sm text-slate-600 leading-relaxed line-clamp-2 mb-4">{profile.bio}</p>
                 )}
 
-                {/* Skills */}
                 {profile.skills.length > 0 && (
                   <div className="flex flex-wrap gap-1.5 mb-4">
                     {profile.skills.slice(0, 5).map((s) => <SkillTag key={s} skill={s} />)}
@@ -268,42 +379,18 @@ export default function TalentDashboard() {
                   </div>
                 )}
 
-                {/* Meta stats */}
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>{profile.profile_views} views</span>
-                  <span>{requestCounts[profile.id] ?? 0} requests</span>
                 </div>
 
-                {/* Availability toggle */}
-                <div className="mt-5 pt-5 border-t border-slate-100">
-                  <p className="section-label mb-3">Update availability</p>
-                  <div className="flex gap-2">
-                    {(['available', 'not_looking'] as AvailabilityStatus[]).map((s) => (
-                      <button
-                        key={s}
-                        onClick={() => toggleAvailability(profile, s)}
-                        className={`flex-1 text-xs px-3 py-2.5 rounded-xl border font-semibold transition-all text-center ${
-                          (profile.availability_status === s || (s === 'available' && profile.availability_status === 'open'))
-                            ? s === 'available' ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                              : 'bg-slate-100 text-slate-600 border-slate-300'
-                            : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
-                        }`}
-                      >
-                        {s === 'available' ? 'Available' : 'Not Available'}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-slate-400 mt-2.5">
-                    Updated {timeAgo(profile.availability_updated_at)}
-                  </p>
-                </div>
+                <AvailabilityToggle profile={profile} onToggle={(s) => toggleAvailability(profile, s)} />
               </div>
             </div>
           ))}
         </div>
       )}
 
-      {/* Create / Edit modal — full screen */}
+      {/* Create / Edit modal */}
       {modal && userProfile && (
         <div className="fixed inset-0 z-[60] overflow-auto bg-white">
           <ProfileForm
@@ -323,9 +410,7 @@ export default function TalentDashboard() {
             <p className="text-sm text-slate-500 mb-6 leading-relaxed">This will permanently remove the profile and all related data.</p>
             <div className="flex gap-3">
               <button onClick={() => setDeleteId(null)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={() => handleDelete(deleteId)} className="flex-1 btn-primary bg-red-600 hover:bg-red-700">
-                Delete
-              </button>
+              <button onClick={() => handleDelete(deleteId)} className="flex-1 btn-primary bg-red-600 hover:bg-red-700">Delete</button>
             </div>
           </div>
         </div>
