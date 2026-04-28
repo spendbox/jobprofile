@@ -428,123 +428,29 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
           </div>
         )}
 
-        {/* ── Step 2: CV & Skills ────────────────────────────────────────── */}
+        {/* ── Step 2: Your Experience ───────────────────────────────────── */}
         {step === 2 && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 mb-1">CV &amp; Skills</h2>
-              <p className="text-sm text-slate-500">Upload your CV to auto-fill skills, or add them manually.</p>
+              <h2 className="text-2xl font-black text-slate-900 mb-1">Your Experience</h2>
+              <p className="text-sm text-slate-500">Review and refine what was extracted from your CV.</p>
             </div>
 
-            {/* CV upload section */}
+            {/* Bio — autofilled from CV */}
             <div>
-              <label className="label mb-3">CV / Resume</label>
-
-              {cvStage === 'done' && cvData ? (
-                <div className="border border-emerald-200 bg-emerald-50 rounded-2xl p-4 space-y-3">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                      </svg>
-                      <span className="text-sm font-bold text-emerald-800">CV parsed successfully</span>
-                    </div>
-                    <button
-                      onClick={() => {
-                        setCvData(null)
-                        setCvFile(null)
-                        setSuggestedSkills([])
-                        setCvStage('idle')
-                        if (cvFileRef.current) cvFileRef.current.value = ''
-                      }}
-                      className="text-xs text-slate-500 hover:text-slate-700"
-                    >
-                      Replace
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    {[
-                      { label: 'Experience', count: cvData.experience.length },
-                      { label: 'Education', count: cvData.education.length },
-                      { label: 'Certifications', count: cvData.certifications.length },
-                    ].map(({ label, count }) => (
-                      <div key={label} className="bg-white rounded-xl py-2.5 px-2 border border-emerald-100">
-                        <p className="text-lg font-black text-slate-900">{count}</p>
-                        <p className="text-[10px] text-slate-500 font-medium">{label}</p>
-                      </div>
-                    ))}
-                  </div>
-
-                  {cvData.summary && (
-                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3 bg-white rounded-xl p-3 border border-emerald-100">
-                      {cvData.summary}
-                    </p>
-                  )}
-                </div>
-              ) : cvParsing ? (
-                /* Stage indicator */
-                <div className="border border-indigo-100 bg-indigo-50 rounded-2xl p-5">
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
-                    <span className="text-sm font-semibold text-indigo-800">{CV_STAGE_TEXT[cvStage]}</span>
-                  </div>
-                  <div className="flex gap-2">
-                    {(['uploading', 'extracting', 'parsing'] as CvStage[]).map((s, i) => {
-                      const stages: CvStage[] = ['uploading', 'extracting', 'parsing']
-                      const currentIdx = stages.indexOf(cvStage)
-                      const done = i < currentIdx
-                      const active = i === currentIdx
-                      return (
-                        <div key={s} className="flex-1 text-center">
-                          <div className={`h-1.5 rounded-full mb-1.5 transition-all ${done ? 'bg-indigo-500' : active ? 'bg-indigo-400' : 'bg-indigo-100'}`} />
-                          <p className={`text-[10px] font-medium ${active ? 'text-indigo-700' : done ? 'text-indigo-500' : 'text-indigo-300'}`}>
-                            {s === 'uploading' ? 'Uploading' : s === 'extracting' ? 'Extracting' : 'AI Parsing'}
-                          </p>
-                        </div>
-                      )
-                    })}
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <input
-                    ref={cvFileRef}
-                    type="file"
-                    accept=".pdf,.doc,.docx"
-                    className="hidden"
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCvSelect(f) }}
-                  />
-                  {cvFilePath && !cvFile && cvStage === 'idle' ? (
-                    <div className="flex items-center gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-3">
-                      <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25" />
-                      </svg>
-                      <span className="text-sm text-slate-700 flex-1 truncate">CV attached</span>
-                      <button
-                        onClick={() => { setCvFilePath(''); setCvData(null) }}
-                        className="text-xs text-red-400 hover:text-red-600 flex-shrink-0"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ) : null}
-                  <button onClick={() => cvFileRef.current?.click()} className="btn-secondary w-full">
-                    {cvFilePath && !cvFile ? 'Replace CV (PDF or DOCX)' : 'Upload CV (PDF or DOCX)'}
-                  </button>
-                  {cvParseError && (
-                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-3">{cvParseError}</p>
-                  )}
-                  <p className="text-xs text-slate-400 text-center mt-1.5">AI will extract your experience, education &amp; skills</p>
-                </div>
-              )}
+              <label className="label">Professional Bio</label>
+              <textarea
+                className="input-base resize-none"
+                rows={4}
+                placeholder="A short intro about your experience and what you bring to the table…"
+                value={form.bio}
+                onChange={(e) => set('bio', e.target.value)}
+              />
             </div>
 
-            {/* Skills section */}
+            {/* Skills */}
             <div>
               <label className="label">Skills</label>
-
-              {/* Suggested skills from CV */}
               {suggestedSkills.length > 0 && (
                 <div className="mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
                   <p className="text-xs font-semibold text-indigo-700 mb-2">Found in CV — tap to add:</p>
@@ -564,7 +470,6 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
                   </div>
                 </div>
               )}
-
               <div className="flex gap-2 mb-3">
                 <input
                   className="input-base"
@@ -580,9 +485,38 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
                   {form.skills.map((s) => <SkillTag key={s} skill={s} onRemove={() => removeSkill(s)} />)}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400">No skills added yet. Upload a CV or type them above.</p>
+                <p className="text-xs text-slate-400">No skills yet. Add them above.</p>
               )}
             </div>
+
+            {/* Education — read-only from CV */}
+            {cvData && cvData.education.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Education (from CV)</p>
+                <div className="space-y-2">
+                  {cvData.education.map((edu, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+                      <p className="text-sm font-semibold text-slate-800">{edu.degree}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{edu.school}{edu.period ? ` · ${edu.period}` : ''}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Languages — read-only from CV */}
+            {cvData && cvData.languages.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Languages (from CV)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cvData.languages.map((lang) => (
+                    <span key={lang} className="text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2.5 py-1 rounded-full font-medium">
+                      {lang}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
