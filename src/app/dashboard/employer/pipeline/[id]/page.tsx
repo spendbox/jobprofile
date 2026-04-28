@@ -479,9 +479,7 @@ export default function PipelinePage() {
                 <div className="card p-12 text-center">
                   <p className="font-semibold text-slate-700 mb-2">No candidates here yet</p>
                   <p className="text-sm text-slate-500">
-                    {activeFilter !== 'matches'
-                      ? 'No candidates in this stage.'
-                      : 'Invited candidates will appear here.'}
+                    No candidates in this stage.
                   </p>
                 </div>
               ) : (
