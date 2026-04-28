@@ -62,6 +62,9 @@ export interface TalentProfile {
   cv_data?: CVData
   cv_file_path?: string
   portfolio_item_ids: string[]
+  email_contact?: string
+  work_arrangement_preference?: string[]
+  willing_to_travel?: boolean
   profile_views: number
   times_shown: number
   availability_updated_at: string
@@ -186,7 +189,7 @@ export const WORK_ARRANGEMENT_LABELS: Record<WorkArrangement, string> = {
 }
 
 export const TIMEZONES = [
-  'UTC',
+  'UTC+0',
   'UTC-12', 'UTC-11', 'UTC-10', 'UTC-9', 'UTC-8', 'UTC-7', 'UTC-6',
   'UTC-5', 'UTC-4', 'UTC-3', 'UTC-2', 'UTC-1',
   'UTC+1', 'UTC+2', 'UTC+3', 'UTC+4', 'UTC+5', 'UTC+5:30',
