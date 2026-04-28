@@ -68,13 +68,15 @@ export function BottomNav() {
   const isTalent = userProfile.user_role === 'talent'
   const dashboardHref = isTalent ? '/dashboard/talent' : '/dashboard/employer'
 
-  const links = [
-    { href: dashboardHref, label: 'Dashboard', icon: <UserIcon />, badge: 0 },
-    isTalent
-      ? { href: '/dashboard/talent/portfolio', label: 'Portfolio', icon: <DocumentIcon />, badge: 0 }
-      : { href: '/search', label: 'Discover', icon: <SearchIcon />, badge: 0 },
-    { href: '/requests', label: 'Requests', icon: <InboxIcon />, badge: pendingCount },
-  ]
+  const links = isTalent
+    ? [
+        { href: dashboardHref, label: 'Dashboard', icon: <UserIcon />, badge: 0 },
+        { href: '/dashboard/talent/portfolio', label: 'Portfolio', icon: <DocumentIcon />, badge: 0 },
+        { href: '/requests', label: 'Requests', icon: <InboxIcon />, badge: pendingCount },
+      ]
+    : [
+        { href: dashboardHref, label: 'Dashboard', icon: <UserIcon />, badge: 0 },
+      ]
 
   return (
     <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-white border-t border-slate-200 safe-area-bottom">

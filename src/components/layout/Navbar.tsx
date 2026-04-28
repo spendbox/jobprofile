@@ -57,11 +57,7 @@ export function Navbar() {
           { href: '/dashboard/talent/portfolio', label: 'Portfolio' },
           { href: '/requests', label: 'Requests' },
         ]
-      : [
-          { href: '/search', label: 'Discover' },
-          { href: '/dashboard/employer', label: 'Dashboard' },
-          { href: '/requests', label: 'Requests' },
-        ]
+      : [] // employers navigate via avatar dropdown only
     : []
 
   return (

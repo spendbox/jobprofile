@@ -4,27 +4,19 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useCallback } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useAuth } from '@/contexts/AuthContext'
 import { ProfileCard } from '@/components/talent/ProfileCard'
 import { SearchFiltersPanel } from '@/components/employer/SearchFilters'
-import type { TalentProfile, SearchFilters, JobOpening } from '@/types'
+import type { TalentProfile, SearchFilters } from '@/types'
 
 const PAGE_SIZE = 12
 
 export default function SearchPage() {
   const supabase = createClient()
-  const { userProfile } = useAuth()
 
   const [profiles, setProfiles] = useState<TalentProfile[]>([])
   const [filters, setFilters] = useState<SearchFilters>({})
   const [loading, setLoading] = useState(true)
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [requestedIds, setRequestedIds] = useState<Set<string>>(new Set())
-  const [requestModal, setRequestModal] = useState<{ profileId: string } | null>(null)
-  const [requestMessage, setRequestMessage] = useState('')
-  const [requestOpening, setRequestOpening] = useState<string>('')
-  const [requesting, setRequesting] = useState(false)
-  const [openings, setOpenings] = useState<JobOpening[]>([])
   const [page, setPage] = useState(0)
   const [total, setTotal] = useState(0)
 
@@ -80,47 +72,7 @@ export default function SearchPage() {
     fetchProfiles(filters, page)
   }, [filters, page, fetchProfiles])
 
-  useEffect(() => {
-    if (!userProfile) return
-    supabase
-      .from('interview_requests')
-      .select('profile_id')
-      .eq('employer_id', userProfile.id)
-      .then(({ data }) => {
-        if (data) setRequestedIds(new Set(data.map((r) => r.profile_id)))
-      })
-    if (userProfile.user_role === 'employer') {
-      supabase
-        .from('job_openings')
-        .select('*')
-        .eq('employer_id', userProfile.id)
-        .order('created_at', { ascending: false })
-        .then(({ data }) => { if (data) setOpenings(data as JobOpening[]) })
-    }
-  }, [userProfile, supabase])
-
-  const submitRequest = async () => {
-    if (!requestModal || !userProfile) return
-    setRequesting(true)
-    const { error } = await supabase.from('interview_requests').insert({
-      employer_id: userProfile.id,
-      profile_id: requestModal.profileId,
-      message: requestMessage.trim() || null,
-      opening_id: requestOpening || null,
-      status: 'pending',
-      stage: 'discovered',
-    })
-    if (!error) {
-      setRequestedIds((prev) => { const s = new Set(Array.from(prev)); s.add(requestModal.profileId); return s })
-    }
-    setRequesting(false)
-    setRequestModal(null)
-    setRequestMessage('')
-    setRequestOpening('')
-  }
-
   const totalPages = Math.ceil(total / PAGE_SIZE)
-  const isEmployer = userProfile?.user_role === 'employer'
 
   return (
     <div className="page-container">
@@ -191,9 +143,9 @@ export default function SearchPage() {
                   <ProfileCard
                     key={profile.id}
                     profile={profile}
-                    showRequestButton={isEmployer}
-                    hasRequested={requestedIds.has(profile.id)}
-                    onRequestInterview={(id) => setRequestModal({ profileId: id })}
+                    showRequestButton={false}
+                    hasRequested={false}
+                    onRequestInterview={() => {}}
                   />
                 ))}
               </div>
@@ -224,40 +176,6 @@ export default function SearchPage() {
         </div>
       </div>
 
-      {/* Request modal */}
-      {requestModal && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h3 className="font-bold text-slate-900 mb-1">Send Interview Request</h3>
-            <p className="text-sm text-slate-500 mb-5 leading-relaxed">Add an optional message to introduce yourself.</p>
-            {openings.length > 0 && (
-              <select
-                className="input-base mb-4 text-sm"
-                value={requestOpening}
-                onChange={(e) => setRequestOpening(e.target.value)}
-              >
-                <option value="">No opening selected</option>
-                {openings.map((o) => (
-                  <option key={o.id} value={o.id}>{o.title}</option>
-                ))}
-              </select>
-            )}
-            <textarea
-              className="input-base resize-none mb-5"
-              rows={3}
-              placeholder="Hi! We're looking for someone to join our team…"
-              value={requestMessage}
-              onChange={(e) => setRequestMessage(e.target.value)}
-            />
-            <div className="flex gap-3">
-              <button onClick={() => setRequestModal(null)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={submitRequest} disabled={requesting} className="btn-primary flex-1">
-                {requesting ? 'Sending…' : 'Send Request'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   )
 }

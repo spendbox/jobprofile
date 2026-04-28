@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
   const baseQuery = () =>
     supabase
       .from('profiles')
-      .select('id, role_title, skills, years_experience, bio')
+      .select('id, user_id, role_title, skills, years_experience, bio')
       .neq('availability_status', 'not_looking')
       .limit(60)
 
@@ -143,17 +143,26 @@ ${candidateList}`
       max_tokens: 4000,
     })
     const raw = completion.choices[0]?.message?.content ?? '[]'
-    // Strip any markdown code fences
     const cleaned = raw.replace(/```json?/g, '').replace(/```/g, '').trim()
     scoredCandidates = JSON.parse(cleaned)
   } catch (e) {
-    // If AI fails, fall back to rule-based scores (all equal)
     scoredCandidates = profiles.map((p) => ({
       profile_id: p.id,
       score: 50,
       summary: 'Matched based on role and skills.',
     }))
   }
+
+  // Deduplicate by user_id: one request per talent, using their highest-scoring profile
+  const profileUserMap = new Map(profiles.map((p) => [p.id, p.user_id as string]))
+  const bestPerUser = new Map<string, { profile_id: string; score: number; summary: string }>()
+  for (const c of scoredCandidates) {
+    const userId = profileUserMap.get(c.profile_id)
+    if (!userId) continue
+    const existing = bestPerUser.get(userId)
+    if (!existing || c.score > existing.score) bestPerUser.set(userId, c)
+  }
+  scoredCandidates = Array.from(bestPerUser.values()).sort((a, b) => b.score - a.score)
 
   // 4. Insert talent_find_candidates + auto-send interview_requests to all matches
   if (scoredCandidates.length > 0) {

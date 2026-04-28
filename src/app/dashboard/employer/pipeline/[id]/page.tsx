@@ -127,13 +127,6 @@ function CandidatePanel({
             <p className="text-sm text-slate-500 mt-0.5">{profile?.role_title}</p>
             <div className="flex items-center gap-2 mt-1.5 flex-wrap">
               <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                request.status === 'accepted' ? 'bg-emerald-100 text-emerald-700'
-                : request.status === 'declined' ? 'bg-red-100 text-red-700'
-                : 'bg-amber-100 text-amber-700'
-              }`}>
-                {request.status}
-              </span>
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
                 request.stage === 'hired' ? 'bg-emerald-100 text-emerald-700'
                 : request.stage === 'offer' ? 'bg-amber-100 text-amber-700'
                 : request.stage === 'interview' ? 'bg-violet-100 text-violet-700'
@@ -200,28 +193,30 @@ function CandidatePanel({
           </div>
         )}
 
-        {/* Stage nav */}
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Move stage</p>
-          <div className="flex gap-2">
-            {prevStage && (
-              <button
-                onClick={() => onStageChange(request.id, prevStage)}
-                className="flex-1 btn-secondary text-xs py-2"
-              >
-                ← {STAGE_LABELS[prevStage]}
-              </button>
-            )}
-            {nextStage && (
-              <button
-                onClick={() => onStageChange(request.id, nextStage)}
-                className="flex-1 btn-primary text-xs py-2"
-              >
-                {STAGE_LABELS[nextStage]} →
-              </button>
-            )}
+        {/* Stage nav — employers cannot set 'discovered' or 'interested' (candidate-driven) */}
+        {request.stage !== 'discovered' && (
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Move stage</p>
+            <div className="flex gap-2">
+              {prevStage && prevStage !== 'discovered' && (
+                <button
+                  onClick={() => onStageChange(request.id, prevStage)}
+                  className="flex-1 btn-secondary text-xs py-2"
+                >
+                  ← {STAGE_LABELS[prevStage]}
+                </button>
+              )}
+              {nextStage && (
+                <button
+                  onClick={() => onStageChange(request.id, nextStage)}
+                  className="flex-1 btn-primary text-xs py-2"
+                >
+                  {STAGE_LABELS[nextStage]} →
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Profile links */}
         <div className="flex flex-wrap gap-2 pt-1">

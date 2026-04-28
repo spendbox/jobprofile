@@ -9,7 +9,7 @@ import { createClient } from '@/lib/supabase/client'
 import { Avatar } from '@/components/ui/Avatar'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { availabilityColor, availabilityDot, timeAgo } from '@/lib/utils'
-import type { TalentProfile, UserProfile, PortfolioItem, JobOpening } from '@/types'
+import type { TalentProfile, UserProfile, PortfolioItem } from '@/types'
 import { AVAILABILITY_LABELS } from '@/types'
 import { ProfileForm } from '@/components/talent/ProfileForm'
 
@@ -21,14 +21,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<TalentProfile | null>(null)
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([])
-  const [hasRequested, setHasRequested] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [requestModal, setRequestModal] = useState(false)
-  const [requestMessage, setRequestMessage] = useState('')
-  const [requestOpening, setRequestOpening] = useState<string>('')
-  const [requesting, setRequesting] = useState(false)
-  const [openings, setOpenings] = useState<JobOpening[]>([])
-  const [requestSuccess, setRequestSuccess] = useState(false)
   const [editOpen, setEditOpen] = useState(false)
 
   useEffect(() => {
@@ -50,22 +43,8 @@ export default function ProfilePage() {
       }
 
       if (authUser) {
-        const [{ data: up }, { data: reqData }] = await Promise.all([
-          supabase.from('user_profiles').select('*').eq('id', authUser.id).single(),
-          supabase.from('interview_requests').select('id').eq('employer_id', authUser.id).eq('profile_id', id).maybeSingle(),
-        ])
-        if (up) {
-          setCurrentUser(up as UserProfile)
-          if (up.user_role === 'employer') {
-            supabase
-              .from('job_openings')
-              .select('*')
-              .eq('employer_id', authUser.id)
-              .order('created_at', { ascending: false })
-              .then(({ data: od }) => { if (od) setOpenings(od as JobOpening[]) })
-          }
-        }
-        if (reqData) setHasRequested(true)
+        const { data: up } = await supabase.from('user_profiles').select('*').eq('id', authUser.id).single()
+        if (up) setCurrentUser(up as UserProfile)
 
         if (authUser.id !== profileData.user_id) {
           await supabase.from('profile_views').insert({ profile_id: id, viewer_id: authUser.id })
@@ -78,43 +57,12 @@ export default function ProfilePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.id])
 
-  const handleRequestInterview = async () => {
-    if (!currentUser || currentUser.user_role !== 'employer') {
-      router.push('/auth/login')
-      return
-    }
-    setRequestModal(true)
-  }
-
   const downloadCv = async () => {
     if (!profile?.cv_file_path) return
     const { data } = await supabase.storage
       .from('portfolio')
       .createSignedUrl(profile.cv_file_path, 3600)
     if (data?.signedUrl) window.open(data.signedUrl, '_blank', 'noopener,noreferrer')
-  }
-
-  const submitRequest = async () => {
-    if (!profile) return
-    const { data: { user: authUser } } = await supabase.auth.getUser()
-    if (!authUser) return
-    setRequesting(true)
-
-    await supabase.from('interview_requests').insert({
-      employer_id: authUser.id,
-      profile_id: profile.id,
-      message: requestMessage.trim() || null,
-      opening_id: requestOpening || null,
-      status: 'pending',
-      stage: 'discovered',
-    })
-
-    setHasRequested(true)
-    setRequestSuccess(true)
-    setRequesting(false)
-    setRequestModal(false)
-    setRequestMessage('')
-    setRequestOpening('')
   }
 
   const isOwnProfile = !!currentUser && currentUser.id === profile?.user_id
@@ -136,18 +84,6 @@ export default function ProfilePage() {
   return (
     <div className="page-container max-w-2xl">
 
-      {/* Back link — shown for employers and logged-out visitors only */}
-      {currentUser?.user_role !== 'talent' && (
-        <Link
-          href="/search"
-          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700 mb-6 transition-colors font-medium"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-          </svg>
-          Back to search
-        </Link>
-      )}
 
       {/* Hero card */}
       <div className="card overflow-hidden mb-5">
@@ -418,77 +354,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Sticky CTA — employer only */}
-      {currentUser?.user_role === 'employer' && (
-        <div className="sticky bottom-20 md:bottom-6">
-          {requestSuccess ? (
-            <div className="bg-emerald-500 text-white rounded-2xl p-4 text-center font-semibold shadow-lg shadow-emerald-500/30">
-              Interview request sent — they&apos;ll be notified shortly.
-            </div>
-          ) : (
-            <button
-              onClick={handleRequestInterview}
-              disabled={hasRequested}
-              className={`w-full py-4 rounded-2xl text-base font-bold shadow-lg transition-all ${
-                hasRequested
-                  ? 'bg-slate-100 text-slate-400 cursor-default'
-                  : 'bg-indigo-600 text-white hover:bg-indigo-700 active:bg-indigo-800 shadow-indigo-500/25'
-              }`}
-            >
-              {hasRequested ? 'Interview Request Sent' : 'Request Interview'}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* CTA for logged-out visitors */}
-      {!currentUser && (
-        <div className="sticky bottom-20 md:bottom-6">
-          <Link
-            href="/auth/signup"
-            className="block w-full py-4 rounded-2xl text-base font-bold shadow-lg text-center bg-indigo-600 text-white hover:bg-indigo-700 shadow-indigo-500/25 transition-colors"
-          >
-            Sign up to Request Interview
-          </Link>
-        </div>
-      )}
-
-      {/* Request modal */}
-      {requestModal && (
-        <div className="fixed inset-0 z-[70] flex items-end sm:items-center justify-center p-4 bg-black/50">
-          <div className="bg-white rounded-2xl w-full max-w-md p-6">
-            <h3 className="font-bold text-slate-900 mb-1">Request Interview with {name}</h3>
-            <p className="text-sm text-slate-500 mb-5 leading-relaxed">
-              Add an optional message to introduce yourself and your company.
-            </p>
-            {openings.length > 0 && (
-              <select
-                className="input-base mb-4 text-sm"
-                value={requestOpening}
-                onChange={(e) => setRequestOpening(e.target.value)}
-              >
-                <option value="">No opening selected</option>
-                {openings.map((o) => (
-                  <option key={o.id} value={o.id}>{o.title}</option>
-                ))}
-              </select>
-            )}
-            <textarea
-              className="input-base resize-none mb-5"
-              rows={3}
-              placeholder="Hi! We love your profile and would love to chat…"
-              value={requestMessage}
-              onChange={(e) => setRequestMessage(e.target.value)}
-            />
-            <div className="flex gap-3">
-              <button onClick={() => setRequestModal(false)} className="btn-secondary flex-1">Cancel</button>
-              <button onClick={submitRequest} disabled={requesting} className="btn-primary flex-1">
-                {requesting ? 'Sending…' : 'Send Request'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {editOpen && currentUser && profile && (
         <div className="fixed inset-0 z-[60] overflow-auto bg-white">
