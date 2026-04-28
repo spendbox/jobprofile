@@ -55,9 +55,10 @@ const PORTFOLIO_TYPE_ICON: Record<string, React.ReactNode> = {
   ),
 }
 
-export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileFormProps) {
+export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: ProfileFormProps & { userEmail?: string }) {
   const supabase = createClient()
   const cvFileRef = useRef<HTMLInputElement>(null)
+  const portfolioFileRef = useRef<HTMLInputElement>(null)
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [loading, setLoading] = useState(false)
@@ -71,12 +72,20 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
 
   // Portfolio items
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([])
+  // Inline portfolio add form
+  const [showPortfolioAdd, setShowPortfolioAdd] = useState(false)
+  const [addType, setAddType] = useState<'image' | 'document' | 'link' | 'video'>('link')
+  const [addLabel, setAddLabel] = useState('')
+  const [addUrl, setAddUrl] = useState('')
+  const [addFile, setAddFile] = useState<File | null>(null)
+  const [addError, setAddError] = useState('')
+  const [adding, setAdding] = useState(false)
 
   // CV state
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [cvData, setCvData] = useState<CVData | null>(existing?.cv_data ?? null)
   const [cvFilePath, setCvFilePath] = useState(existing?.cv_file_path ?? '')
-  const [cvStage, setCvStage] = useState<CvStage>('idle')
+  const [cvStage, setCvStage] = useState<CvStage>(existing?.cv_file_path ? 'done' : 'idle')
   const [cvParseError, setCvParseError] = useState('')
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([])
   const [cvUploading, setCvUploading] = useState(false)
@@ -86,8 +95,10 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
     bio: existing?.bio ?? '',
     skills: existing?.skills ?? ([] as string[]),
     years_experience: existing?.years_experience ?? 0,
-    timezone: existing?.timezone ?? 'UTC',
-    availability_status: (existing?.availability_status === 'open' ? 'available' : (existing?.availability_status ?? 'available')) as AvailabilityStatus,
+    timezone: existing?.timezone ?? 'UTC+0',
+    email_contact: existing?.email_contact ?? userEmail ?? '',
+    work_arrangement_preference: existing?.work_arrangement_preference ?? ([] as string[]),
+    willing_to_travel: existing?.willing_to_travel ?? false,
     portfolio_item_ids: existing?.portfolio_item_ids ?? ([] as string[]),
   })
 
@@ -208,9 +219,12 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
         role_title: form.role_title.trim(),
         bio: form.bio.trim() || null,
         skills: form.skills,
-        years_experience: Number(form.years_experience),
+        years_experience: Number(form.years_experience) || 0,
         timezone: form.timezone || null,
-        availability_status: form.availability_status,
+        availability_status: 'available',
+        email_contact: form.email_contact.trim() || null,
+        work_arrangement_preference: form.work_arrangement_preference,
+        willing_to_travel: form.willing_to_travel,
         portfolio_item_ids: form.portfolio_item_ids,
         cv_data: cvData ?? null,
         cv_file_path: finalCvFilePath || null,
@@ -235,7 +249,10 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   }
 
   const advance = () => {
-    if (step === 1 && !form.role_title.trim()) { setError('Role title is required'); return }
+    if (step === 1) {
+      if (!form.role_title.trim()) { setError('Role title is required'); return }
+      if (!cvData && !cvFilePath) { setError('Please upload your CV to continue'); return }
+    }
     setError('')
     setStep((s) => (s + 1) as 1 | 2 | 3 | 4)
   }
@@ -282,7 +299,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-black text-slate-900 mb-1">What role are you offering?</h2>
-              <p className="text-sm text-slate-500">This is the headline employers see on your profile card.</p>
+              <p className="text-sm text-slate-500">Start with your title, experience, and CV.</p>
             </div>
 
             {/* Role title with autocomplete */}
@@ -295,7 +312,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                 onChange={(e) => handleRoleTitleChange(e.target.value)}
                 onFocus={() => form.role_title.trim() && setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && form.role_title.trim()) advance() }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setShowSuggestions(false) } }}
                 autoFocus
               />
               {showSuggestions && roleSuggestions.length > 0 && (
@@ -320,21 +337,93 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
               <input
                 type="number" min={0} max={50}
                 className="input-base"
-                value={form.years_experience}
-                onChange={(e) => set('years_experience', e.target.value)}
+                value={form.years_experience === 0 ? '' : form.years_experience}
+                placeholder="0"
+                onFocus={(e) => { if (Number(e.target.value) === 0) set('years_experience', '') }}
+                onChange={(e) => set('years_experience', e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0))}
               />
             </div>
 
-            {/* Bio */}
+            {/* CV upload — required */}
             <div>
-              <label className="label">Professional Bio <span className="text-slate-400 font-normal">(optional)</span></label>
-              <textarea
-                className="input-base resize-none"
-                rows={5}
-                placeholder="A short intro about your experience and what you bring to the table…"
-                value={form.bio}
-                onChange={(e) => set('bio', e.target.value)}
-              />
+              <label className="label mb-1">CV / Resume <span className="text-red-500">*</span></label>
+              <p className="text-xs text-slate-400 mb-3">Required — AI will extract your skills, experience &amp; bio.</p>
+
+              {cvStage === 'done' && cvData ? (
+                <div className="border border-emerald-200 bg-emerald-50 rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <svg className="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      <span className="text-sm font-bold text-emerald-800">CV parsed successfully</span>
+                    </div>
+                    <button
+                      onClick={() => { setCvData(null); setCvFile(null); setSuggestedSkills([]); setCvStage('idle'); setCvFilePath(''); if (cvFileRef.current) cvFileRef.current.value = '' }}
+                      className="text-xs text-slate-500 hover:text-slate-700"
+                    >
+                      Replace
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    {[
+                      { label: 'Experience', count: cvData.experience.length },
+                      { label: 'Education', count: cvData.education.length },
+                      { label: 'Certifications', count: cvData.certifications.length },
+                    ].map(({ label, count }) => (
+                      <div key={label} className="bg-white rounded-xl py-2.5 px-2 border border-emerald-100">
+                        <p className="text-lg font-black text-slate-900">{count}</p>
+                        <p className="text-[10px] text-slate-500 font-medium">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : cvStage === 'uploading' || cvStage === 'extracting' || cvStage === 'parsing' ? (
+                <div className="border border-indigo-100 bg-indigo-50 rounded-2xl p-5">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
+                    <span className="text-sm font-semibold text-indigo-800">{CV_STAGE_TEXT[cvStage]}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    {(['uploading', 'extracting', 'parsing'] as CvStage[]).map((s, i) => {
+                      const stages: CvStage[] = ['uploading', 'extracting', 'parsing']
+                      const currentIdx = stages.indexOf(cvStage)
+                      const done = i < currentIdx
+                      const active = i === currentIdx
+                      return (
+                        <div key={s} className="flex-1 text-center">
+                          <div className={`h-1.5 rounded-full mb-1.5 transition-all ${done ? 'bg-indigo-500' : active ? 'bg-indigo-400' : 'bg-indigo-100'}`} />
+                          <p className={`text-[10px] font-medium ${active ? 'text-indigo-700' : done ? 'text-indigo-500' : 'text-indigo-300'}`}>
+                            {s === 'uploading' ? 'Uploading' : s === 'extracting' ? 'Extracting' : 'AI Parsing'}
+                          </p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <input
+                    ref={cvFileRef}
+                    type="file"
+                    accept=".pdf,.doc,.docx"
+                    className="hidden"
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleCvSelect(f) }}
+                  />
+                  {cvFilePath && !cvFile && cvStage === 'idle' ? (
+                    <div className="flex items-center gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-3">
+                      <span className="text-sm text-slate-700 flex-1 truncate">CV attached</span>
+                      <button onClick={() => { setCvFilePath(''); setCvData(null) }} className="text-xs text-red-400 hover:text-red-600 flex-shrink-0">Remove</button>
+                    </div>
+                  ) : null}
+                  <button onClick={() => cvFileRef.current?.click()} className="btn-secondary w-full">
+                    {cvFilePath && !cvFile ? 'Replace CV (PDF or DOCX)' : 'Upload CV (PDF or DOCX)'}
+                  </button>
+                  {cvParseError && (
+                    <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-3">{cvParseError}</p>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
