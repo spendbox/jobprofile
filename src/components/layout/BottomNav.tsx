@@ -64,6 +64,7 @@ export function BottomNav() {
   }, [userProfile])
 
   if (pathname.startsWith('/auth') || pathname.startsWith('/admin') || !userProfile) return null
+  if (userProfile.user_role === 'employer') return null
 
   const isTalent = userProfile.user_role === 'talent'
   const dashboardHref = isTalent ? '/dashboard/talent' : '/dashboard/employer'
