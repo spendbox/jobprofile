@@ -520,40 +520,74 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
           </div>
         )}
 
-        {/* ── Step 3: Availability ──────────────────────────────────────── */}
+        {/* ── Step 3: Preferences ───────────────────────────────────────── */}
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 mb-1">What&apos;s your availability?</h2>
-              <p className="text-sm text-slate-500">Employers see this on your profile card.</p>
+              <h2 className="text-2xl font-black text-slate-900 mb-1">Your Preferences</h2>
+              <p className="text-sm text-slate-500">Help employers understand your setup and expectations.</p>
             </div>
-            <div className="space-y-2">
-              {AVAILABILITY_OPTIONS.map(({ value, label, desc }) => (
-                <label
-                  key={value}
-                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                    form.availability_status === value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <input
-                    type="radio" name="availability_status" value={value}
-                    checked={form.availability_status === value}
-                    onChange={() => set('availability_status', value)}
-                    className="mt-0.5 accent-indigo-600"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
+
+            {/* Timezone */}
             <div>
               <label className="label">Timezone</label>
               <select className="input-base" value={form.timezone} onChange={(e) => set('timezone', e.target.value)}>
                 {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
               </select>
             </div>
+
+            {/* Email contact */}
+            <div>
+              <label className="label">Contact Email</label>
+              <input
+                type="email"
+                className="input-base"
+                placeholder="you@example.com"
+                value={form.email_contact}
+                onChange={(e) => set('email_contact', e.target.value)}
+              />
+              <p className="text-xs text-slate-400 mt-1">Shown to employers who reach out — defaults to your account email.</p>
+            </div>
+
+            {/* Work arrangement preference */}
+            <div>
+              <label className="label">Work Preference <span className="text-slate-400 font-normal text-xs">(select all that apply)</span></label>
+              <div className="flex gap-2 flex-wrap mt-1">
+                {(['remote', 'hybrid', 'onsite'] as const).map((a) => {
+                  const selected = form.work_arrangement_preference.includes(a)
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => {
+                        const current = form.work_arrangement_preference
+                        set('work_arrangement_preference', selected ? current.filter((x) => x !== a) : [...current, a])
+                      }}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                        selected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {a === 'remote' ? 'Remote' : a === 'hybrid' ? 'Hybrid' : 'On-site'}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Willing to travel — only if hybrid or onsite selected */}
+            {(form.work_arrangement_preference.includes('hybrid') || form.work_arrangement_preference.includes('onsite')) && (
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.willing_to_travel}
+                    onChange={(e) => set('willing_to_travel', e.target.checked)}
+                    className="w-4 h-4 accent-indigo-600 rounded"
+                  />
+                  <span className="text-sm font-medium text-slate-700">Willing to travel for work</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
