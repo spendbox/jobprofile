@@ -11,7 +11,7 @@ import { UncontactedRow, ContactedRow } from '@/components/employer/PipelineRows
 import type { TalentFind, TalentFindCandidate, InterviewRequest, RequestStage } from '@/types'
 import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
 
-type ViewFilter = 'all' | 'uncontacted' | RequestStage
+type ViewFilter = 'matches' | RequestStage
 
 const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired']
 
@@ -47,7 +47,7 @@ export default function PipelinePage() {
   const [tfc, setTfc] = useState<TalentFindCandidate[]>([])
   const [requests, setRequests] = useState<InterviewRequest[]>([])
   const [loading, setLoading] = useState(true)
-  const [activeFilter, setActiveFilter] = useState<ViewFilter>('all')
+  const [activeFilter, setActiveFilter] = useState<ViewFilter>('matches')
   const [expandedProfileId, setExpandedProfileId] = useState<string | null>(null)
   const [selectedUncontacted, setSelectedUncontacted] = useState<Set<string>>(new Set())
   const [inviting, setInviting] = useState<string | null>(null)
@@ -112,7 +112,7 @@ export default function PipelinePage() {
   }, [])
 
   // ── Filtered lists ──────────────────────────────────────────────────────────
-  const filteredUncontacted = useMemo(() => {
+  const filteredMatches = useMemo(() => {
     let list = tfc.filter((c) => !c.contacted)
     if (verifiedOnly) list = list.filter((c) => c.profiles?.user_profiles?.is_verified)
     if (starFilter > 0) list = list.filter((c) => (c.star_rating ?? 0) >= starFilter)
@@ -123,7 +123,7 @@ export default function PipelinePage() {
     return requests.filter((r) => {
       if (!showArchived && r.archived) return false
       if (showArchived && !r.archived) return false
-      if (activeFilter !== 'all' && activeFilter !== 'uncontacted' && r.stage !== activeFilter) return false
+      if (activeFilter !== 'matches' && r.stage !== activeFilter) return false
       if (starFilter > 0 && (tfcMap[r.profile_id]?.star_rating ?? 0) < starFilter) return false
       if (verifiedOnly && !r.profiles?.user_profiles?.is_verified) return false
       return true
@@ -145,7 +145,7 @@ export default function PipelinePage() {
     }, {} as Record<string, number>),
   [requests])
 
-  const uncontactedCount = tfc.filter((c) => !c.contacted).length
+  const matchesCount = tfc.filter((c) => !c.contacted).length
 
   // ── Handlers ────────────────────────────────────────────────────────────────
   const handleStageChange = async (requestId: string, stage: RequestStage) => {
@@ -177,8 +177,8 @@ export default function PipelinePage() {
       await loadData()
       setSelectedUncontacted(new Set())
       setExpandedProfileId(null)
-      if (activeFilter === 'uncontacted' && filteredUncontacted.length === profileIds.length) {
-        setActiveFilter('all')
+      if (activeFilter === 'matches' && filteredMatches.length === profileIds.length) {
+        setActiveFilter('discovered')
       }
     }
     setInviting(null)
@@ -231,10 +231,9 @@ export default function PipelinePage() {
     )
   }
 
-  const isUncontactedView = activeFilter === 'uncontacted'
-  const listItems = isUncontactedView ? filteredUncontacted : filteredRequests
-  const listTitle = activeFilter === 'all' ? 'All Candidates'
-    : activeFilter === 'uncontacted' ? 'Uncontacted'
+  const isMatchesView = activeFilter === 'matches'
+  const listItems = isMatchesView ? filteredMatches : filteredRequests
+  const listTitle = activeFilter === 'matches' ? 'Matches'
     : STAGE_LABELS[activeFilter as RequestStage]
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
@@ -267,21 +266,14 @@ export default function PipelinePage() {
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-2">
         <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-          label="All Candidates"
-          count={requests.filter((r) => !r.archived).length}
-          active={activeFilter === 'all'}
-          onClick={() => navClick('all')}
-        />
-        <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>}
-          label="Uncontacted"
-          count={uncontactedCount}
-          active={activeFilter === 'uncontacted'}
-          onClick={() => navClick('uncontacted')}
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
+          label="Matches"
+          count={matchesCount}
+          active={activeFilter === 'matches'}
+          onClick={() => navClick('matches')}
         />
 
-        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Stages</p>
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Pipeline stages</p>
 
         {[
           { filter: 'discovered', label: 'Discovered', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> },
@@ -320,7 +312,7 @@ export default function PipelinePage() {
             <input type="checkbox" className="accent-indigo-600 w-3.5 h-3.5" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} />
             <span className="text-[11px] text-slate-500 font-medium">Verified only</span>
           </label>
-          {!isUncontactedView && (
+          {!isMatchesView && (
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="checkbox" className="accent-slate-500 w-3.5 h-3.5" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
               <span className="text-[11px] text-slate-500 font-medium">Show archived</span>
@@ -401,7 +393,7 @@ export default function PipelinePage() {
               <h1 className="font-bold text-slate-900 text-base">{listTitle}</h1>
               <p className="text-sm text-slate-500 mt-0.5">{listItems.length} candidates</p>
             </div>
-            {!isUncontactedView && (
+            {!isMatchesView && (
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
@@ -416,7 +408,7 @@ export default function PipelinePage() {
           </div>
 
           {/* Uncontacted view */}
-          {isUncontactedView && (
+          {isMatchesView && (
             <>
               {selectedUncontacted.size > 0 && (
                 <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-indigo-50 rounded-xl border border-indigo-200">
@@ -433,14 +425,14 @@ export default function PipelinePage() {
                 </div>
               )}
 
-              {filteredUncontacted.length > 0 && (
+              {filteredMatches.length > 0 && (
                 <label className="flex items-center gap-2 text-xs text-slate-500 mb-3 cursor-pointer select-none">
                   <input
                     type="checkbox"
-                    checked={selectedUncontacted.size === filteredUncontacted.length}
+                    checked={selectedUncontacted.size === filteredMatches.length}
                     onChange={(e) =>
                       setSelectedUncontacted(e.target.checked
-                        ? new Set(filteredUncontacted.map((c) => c.profile_id))
+                        ? new Set(filteredMatches.map((c) => c.profile_id))
                         : new Set())
                     }
                     className="accent-indigo-600 w-4 h-4"
@@ -449,14 +441,14 @@ export default function PipelinePage() {
                 </label>
               )}
 
-              {filteredUncontacted.length === 0 ? (
+              {filteredMatches.length === 0 ? (
                 <div className="card p-12 text-center">
-                  <p className="font-semibold text-slate-700 mb-2">No uncontacted candidates</p>
+                  <p className="font-semibold text-slate-700 mb-2">No matches yet</p>
                   <p className="text-sm text-slate-500">All candidates have been invited, or try "Discover more talent" in the sidebar.</p>
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {filteredUncontacted.map((candidate) => (
+                  {filteredMatches.map((candidate) => (
                     <UncontactedRow
                       key={candidate.profile_id}
                       candidate={candidate}
@@ -481,13 +473,13 @@ export default function PipelinePage() {
           )}
 
           {/* Contacted (stage) view */}
-          {!isUncontactedView && (
+          {!isMatchesView && (
             <>
               {filteredRequests.length === 0 ? (
                 <div className="card p-12 text-center">
                   <p className="font-semibold text-slate-700 mb-2">No candidates here yet</p>
                   <p className="text-sm text-slate-500">
-                    {activeFilter !== 'all'
+                    {activeFilter !== 'matches'
                       ? 'No candidates in this stage.'
                       : 'Invited candidates will appear here.'}
                   </p>
