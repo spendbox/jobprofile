@@ -4,6 +4,7 @@ export const dynamic = 'force-dynamic'
 
 import { useEffect, useState, useMemo } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
@@ -14,54 +15,50 @@ import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@
 export default function RequestsPage() {
   const supabase = createClient()
   const { userProfile, loadingAuth } = useAuth()
+  const router = useRouter()
+
+  // Employers manage candidates through the pipeline page, not here
+  useEffect(() => {
+    if (!loadingAuth && userProfile?.user_role === 'employer') {
+      router.replace('/dashboard/employer')
+    }
+  }, [userProfile, loadingAuth, router])
 
   const [requests, setRequests] = useState<InterviewRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [statusFilter, setStatusFilter] = useState<RequestStatus | 'all'>('all')
-  const [archivedFilter, setArchivedFilter] = useState<'active' | 'archived' | 'all'>('active')
   // Per-request question answers state (keyed by requestId)
   const [answers, setAnswers] = useState<Record<string, Record<string, string>>>({})
   const [responding, setResponding] = useState<string | null>(null)
 
   useEffect(() => {
-    if (loadingAuth || !userProfile) return
+    if (loadingAuth || !userProfile || userProfile.user_role === 'employer') return
 
     const load = async () => {
       setLoading(true)
 
-      if (userProfile.user_role === 'talent') {
-        const { data: myProfiles } = await supabase
-          .from('profiles')
-          .select('id')
-          .eq('user_id', userProfile.id)
-        const profileIds = myProfiles?.map((p) => p.id) ?? []
+      const { data: myProfiles } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', userProfile.id)
+      const profileIds = myProfiles?.map((p) => p.id) ?? []
 
-        if (profileIds.length > 0) {
-          const { data, error } = await supabase
-            .from('interview_requests')
-            .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), employer:user_profiles!ir_employer_user_profiles_fkey(*), talent_find:talent_finds(*)')
-            .in('profile_id', profileIds)
-            .order('created_at', { ascending: false })
-          if (error) console.error('requests error', error)
-          const loaded = (data as InterviewRequest[]) ?? []
-          setRequests(loaded)
-          // Seed answers state from existing question_answers
-          const seedAnswers: Record<string, Record<string, string>> = {}
-          for (const r of loaded) {
-            if (r.question_answers) seedAnswers[r.id] = r.question_answers as Record<string, string>
-          }
-          setAnswers(seedAnswers)
-        } else {
-          setRequests([])
-        }
-      } else {
+      if (profileIds.length > 0) {
         const { data, error } = await supabase
           .from('interview_requests')
-          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
-          .eq('employer_id', userProfile.id)
+          .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*)), employer:user_profiles!ir_employer_user_profiles_fkey(*), talent_find:talent_finds(*)')
+          .in('profile_id', profileIds)
           .order('created_at', { ascending: false })
         if (error) console.error('requests error', error)
-        setRequests((data as InterviewRequest[]) ?? [])
+        const loaded = (data as InterviewRequest[]) ?? []
+        setRequests(loaded)
+        const seedAnswers: Record<string, Record<string, string>> = {}
+        for (const r of loaded) {
+          if (r.question_answers) seedAnswers[r.id] = r.question_answers as Record<string, string>
+        }
+        setAnswers(seedAnswers)
+      } else {
+        setRequests([])
       }
 
       setLoading(false)
@@ -96,16 +93,11 @@ export default function RequestsPage() {
   }
 
   const filtered = useMemo(() => {
-    const employer = userProfile?.user_role === 'employer'
     return requests.filter((r) => {
       if (statusFilter !== 'all' && r.status !== statusFilter) return false
-      if (employer) {
-        if (archivedFilter === 'active' && r.archived) return false
-        if (archivedFilter === 'archived' && !r.archived) return false
-      }
       return true
     })
-  }, [requests, statusFilter, archivedFilter, userProfile?.user_role])
+  }, [requests, statusFilter])
 
   if (loadingAuth || loading) {
     return (
@@ -114,9 +106,6 @@ export default function RequestsPage() {
       </div>
     )
   }
-
-  const isEmployer = userProfile?.user_role === 'employer'
-  const isTalent = userProfile?.user_role === 'talent'
 
   const statusCounts = {
     all: requests.length,
@@ -130,11 +119,10 @@ export default function RequestsPage() {
 
       {/* Header */}
       <div className="mb-6">
-        <p className="section-label mb-1">Inbox</p>
+        <p className="section-label mb-1">History</p>
         <h1 className="text-2xl font-black text-slate-900">Interview Requests</h1>
         <p className="text-sm text-slate-500 mt-1">
-          {isEmployer ? "Requests you've sent to talent" : 'Requests received from employers'}
-          {requests.length > 0 && ` · ${requests.length} total`}
+          All requests received from employers{requests.length > 0 && ` · ${requests.length} total`}
         </p>
       </div>
 
@@ -162,23 +150,6 @@ export default function RequestsPage() {
             ))}
           </div>
 
-          {isEmployer && (
-            <div className="flex items-center gap-1.5 flex-wrap">
-              {(['active', 'archived', 'all'] as const).map((v) => (
-                <button
-                  key={v}
-                  onClick={() => setArchivedFilter(v)}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold transition-colors ${
-                    archivedFilter === v
-                      ? 'bg-slate-700 text-white'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
-                  }`}
-                >
-                  {v === 'active' ? 'Active' : v === 'archived' ? 'Archived' : 'All'}
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
@@ -194,25 +165,17 @@ export default function RequestsPage() {
           </p>
           <p className="text-sm text-slate-500 leading-relaxed max-w-xs mx-auto">
             {requests.length === 0
-              ? isTalent
+              ? true
                 ? 'When employers discover your profile, their requests will appear here.'
                 : 'Browse talent and send interview requests to start your pipeline.'
               : 'Try changing the filters above.'}
           </p>
-          {isEmployer && requests.length === 0 && (
-            <Link href="/dashboard/employer/new-find" className="btn-primary mx-auto mt-6 inline-flex">
-              Find Talent
-            </Link>
-          )}
         </div>
       ) : (
         <div className="space-y-4">
           {filtered.map((req) => {
-            const profile = req.profiles
-            const talentName = profile?.user_profiles?.full_name ?? 'Talent'
             const employer = req.employer as unknown as UserProfile | undefined
-            const companyName = employer?.company_name ?? employer?.full_name ?? 'Employer'
-            const displayName = isTalent ? companyName : talentName
+            const displayName = employer?.company_name ?? employer?.full_name ?? 'Employer'
             const isPending = req.status === 'pending'
             const find = req.talent_find as TalentFind | undefined
 
@@ -230,12 +193,8 @@ export default function RequestsPage() {
                     <Avatar name={displayName} size="lg" />
                     <div className="flex-1 min-w-0">
                       <p className="font-bold text-slate-900 text-base leading-snug">{displayName}</p>
-                      {isTalent && find ? (
+                      {find && (
                         <p className="text-sm text-indigo-600 font-semibold mt-0.5">{find.role_title}</p>
-                      ) : (
-                        profile?.role_title && (
-                          <p className="text-sm text-indigo-600 font-semibold mt-0.5">{profile.role_title}</p>
-                        )
                       )}
                       <div className="flex items-center gap-2 mt-2 flex-wrap">
                         <span className={`text-xs px-2.5 py-1 rounded-full font-semibold ${
@@ -260,12 +219,12 @@ export default function RequestsPage() {
                   )}
 
                   {/* Job spec — talent view, talent-find-backed request */}
-                  {isTalent && find && (
+                  {true && find && (
                     <JobSpec find={find} defaultExpanded={isPending} />
                   )}
 
                   {/* Custom questions */}
-                  {isTalent && find && (find.custom_questions?.length ?? 0) > 0 && (
+                  {true && find && (find.custom_questions?.length ?? 0) > 0 && (
                     <div className="mt-4 space-y-3">
                       <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">
                         Screening questions
@@ -308,7 +267,7 @@ export default function RequestsPage() {
                       >
                         View Profile
                       </Link>
-                      {isTalent && isPending && (
+                      {true && isPending && (
                         <>
                           <button
                             onClick={() => respond(req.id, 'declined')}
