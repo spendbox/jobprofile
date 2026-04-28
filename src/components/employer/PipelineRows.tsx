@@ -236,7 +236,7 @@ export function ContactedRow({
   const [saving, setSaving] = useState(false)
 
   const saveNotes = async () => {
-    if (!tfc || notes === (tfc.notes ?? '')) return
+    if (notes === (tfc?.notes ?? '')) return
     setSaving(true)
     const res = await fetch(`/api/talent-finds/${findId}/candidates/${request.profile_id}`, {
       method: 'PATCH',
@@ -248,7 +248,6 @@ export function ContactedRow({
   }
 
   const handleStar = async (rating: number) => {
-    if (!tfc) return
     const res = await fetch(`/api/talent-finds/${findId}/candidates/${request.profile_id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

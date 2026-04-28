@@ -17,14 +17,24 @@ export async function PATCH(
   if ('star_rating' in body) patch.star_rating = body.star_rating
   if ('notes' in body) patch.notes = body.notes
 
-  const { data, error } = await supabase
+  const { data: updated } = await supabase
     .from('talent_find_candidates')
     .update(patch)
     .eq('talent_find_id', id)
     .eq('profile_id', profileId)
     .select()
+
+  if (updated && updated.length > 0) {
+    return NextResponse.json(updated[0])
+  }
+
+  // Row doesn't exist yet (candidate was invited without going through AI matching)
+  const { data: inserted, error: insertErr } = await supabase
+    .from('talent_find_candidates')
+    .insert({ talent_find_id: id, profile_id: profileId, ai_score: 0, contacted: true, ...patch })
+    .select()
     .single()
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  return NextResponse.json(data)
+  if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+  return NextResponse.json(inserted)
 }
