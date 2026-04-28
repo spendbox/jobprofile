@@ -60,6 +60,7 @@ export default function ProfilesPage() {
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<ModalState>(null)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState('')
 
   useEffect(() => {
     if (loadingAuth) return
@@ -67,12 +68,12 @@ export default function ProfilesPage() {
     if (userProfile.user_role === 'employer') { router.push('/dashboard/employer'); return }
 
     const load = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userProfile.id)
-        .order('created_at', { ascending: false })
+      const [{ data }, { data: { user } }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', userProfile.id).order('created_at', { ascending: false }),
+        supabase.auth.getUser(),
+      ])
       setProfiles((data as TalentProfile[]) ?? [])
+      if (user?.email) setUserEmail(user.email)
       setLoading(false)
     }
     load()
@@ -227,6 +228,7 @@ export default function ProfilesPage() {
             existing={modal.type === 'edit' ? modal.profile : undefined}
             onSaved={handleSaved}
             onCancel={() => setModal(null)}
+            userEmail={userEmail}
           />
         </div>
       )}

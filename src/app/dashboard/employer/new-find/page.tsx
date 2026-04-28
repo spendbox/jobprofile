@@ -8,6 +8,8 @@ import { SkillTag } from '@/components/ui/SkillTag'
 import { createClient } from '@/lib/supabase/client'
 import type { EmploymentType, WorkArrangement } from '@/types'
 import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
+import { COUNTRIES } from '@/lib/countries'
+import { COMMON_SKILLS } from '@/lib/skills'
 
 const EMPLOYMENT_TYPES: EmploymentType[] = ['fulltime', 'parttime', 'contract', 'volunteer', 'internship']
 const WORK_ARRANGEMENTS: WorkArrangement[] = ['remote', 'hybrid', 'onsite']
@@ -38,6 +40,7 @@ export default function NewTalentFindPage() {
   const [maxExp, setMaxExp] = useState('')
   const [skillInput, setSkillInput] = useState('')
   const [skills, setSkills] = useState<string[]>([])
+  const [skillSuggestions, setSkillSuggestions] = useState<string[]>([])
   const [salaryMin, setSalaryMin] = useState('')
   const [salaryMax, setSalaryMax] = useState('')
 
@@ -72,10 +75,23 @@ export default function NewTalentFindPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
-  const addSkill = () => {
-    const t = skillInput.trim()
+  const addSkill = (value?: string) => {
+    const t = (value ?? skillInput).trim()
     if (t && !skills.includes(t)) setSkills((s) => [...s, t])
     setSkillInput('')
+    setSkillSuggestions([])
+  }
+
+  const handleSkillInputChange = (val: string) => {
+    setSkillInput(val)
+    if (val.trim().length >= 2) {
+      const lower = val.toLowerCase()
+      setSkillSuggestions(
+        COMMON_SKILLS.filter((s) => s.toLowerCase().includes(lower) && !skills.includes(s)).slice(0, 6)
+      )
+    } else {
+      setSkillSuggestions([])
+    }
   }
 
   const addQuestion = () => {
@@ -157,7 +173,7 @@ export default function NewTalentFindPage() {
 
       {/* Header */}
       <div className="mb-6">
-        <p className="section-label mb-1">New Talent Find</p>
+        <p className="section-label mb-1">Create Pipeline</p>
         <h1 className="text-2xl font-black text-slate-900">
           {step === 1 ? 'Define the role' : step === 2 ? 'Set requirements' : 'Write the job details'}
         </h1>
@@ -272,12 +288,14 @@ export default function NewTalentFindPage() {
             <div>
               <label className="label">Location <span className="text-slate-400 font-normal text-xs">(shown to candidates, optional)</span></label>
               <div className="grid grid-cols-2 gap-3">
-                <input
+                <select
                   className="input-base"
-                  placeholder="Country"
                   value={hiringCountry}
                   onChange={(e) => setHiringCountry(e.target.value)}
-                />
+                >
+                  <option value="">Select country…</option>
+                  {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
                 <input
                   className="input-base"
                   placeholder="State / Region"
@@ -317,15 +335,32 @@ export default function NewTalentFindPage() {
             {/* Skills */}
             <div>
               <label className="label">Skills needed <span className="text-slate-400 font-normal text-xs">(used to filter candidates)</span></label>
-              <div className="flex gap-2">
-                <input
-                  className="input-base flex-1"
-                  placeholder="e.g. TypeScript, React, Node.js"
-                  value={skillInput}
-                  onChange={(e) => setSkillInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill() } }}
-                />
-                <button type="button" onClick={addSkill} className="btn-secondary flex-shrink-0">Add</button>
+              <div className="relative">
+                <div className="flex gap-2">
+                  <input
+                    className="input-base flex-1"
+                    placeholder="e.g. TypeScript, React, Node.js"
+                    value={skillInput}
+                    onChange={(e) => handleSkillInputChange(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addSkill() } }}
+                    onBlur={() => setTimeout(() => setSkillSuggestions([]), 150)}
+                  />
+                  <button type="button" onClick={() => addSkill()} className="btn-secondary flex-shrink-0">Add</button>
+                </div>
+                {skillSuggestions.length > 0 && (
+                  <div className="absolute z-20 left-0 right-16 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden">
+                    {skillSuggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onMouseDown={() => addSkill(s)}
+                        className="w-full text-left px-3 py-2 text-sm text-slate-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors"
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
               {skills.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mt-2">
