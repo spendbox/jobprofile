@@ -23,21 +23,40 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: 'profile_ids required' }, { status: 400 })
   }
 
-  // Insert interview_requests (ignore conflicts — already contacted)
-  const requests = profile_ids.map((pid: string) => ({
-    employer_id: user.id,
-    profile_id: pid,
-    talent_find_id: id,
-    message: message?.trim() || null,
-    status: 'pending',
-    stage: 'discovered',
-  }))
-
-  const { error: reqErr } = await supabase
+  // Determine which profile_ids already have an IR for this employer
+  const { data: existing } = await supabase
     .from('interview_requests')
-    .upsert(requests, { onConflict: 'employer_id,profile_id', ignoreDuplicates: true })
+    .select('profile_id')
+    .eq('employer_id', user.id)
+    .in('profile_id', profile_ids)
 
-  if (reqErr) return NextResponse.json({ error: reqErr.message }, { status: 500 })
+  const existingSet = new Set((existing ?? []).map((e: { profile_id: string }) => e.profile_id))
+  const brandNew = profile_ids.filter((pid: string) => !existingSet.has(pid))
+  const alreadyExist = profile_ids.filter((pid: string) => existingSet.has(pid))
+
+  // Insert fresh IRs for first-time invites
+  if (brandNew.length > 0) {
+    const { error: insertErr } = await supabase
+      .from('interview_requests')
+      .insert(brandNew.map((pid: string) => ({
+        employer_id: user.id,
+        profile_id: pid,
+        talent_find_id: id,
+        message: message?.trim() || null,
+        status: 'pending',
+        stage: 'discovered',
+      })))
+    if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
+  }
+
+  // Re-associate existing IRs to this pipeline so they appear in the stage view
+  if (alreadyExist.length > 0) {
+    await supabase
+      .from('interview_requests')
+      .update({ talent_find_id: id })
+      .eq('employer_id', user.id)
+      .in('profile_id', alreadyExist)
+  }
 
   // Mark as contacted in talent_find_candidates
   await supabase
