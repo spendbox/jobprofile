@@ -287,6 +287,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
     if (step === 1) {
       if (!form.role_title.trim()) { setError('Role title is required'); return }
       if (!cvData && !cvFilePath) { setError('Please upload your CV to continue'); return }
+      if (cvParsing) { setError('Please wait for your CV to finish parsing'); return }
     }
     setError('')
     setStep((s) => (s + 1) as 1 | 2 | 3 | 4)
@@ -716,7 +717,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: 
           <button onClick={onCancel} className="btn-secondary">Cancel</button>
         )}
         {step < 4 ? (
-          <button onClick={advance} disabled={step === 2 && cvParsing} className="btn-primary flex-1">
+          <button onClick={advance} disabled={(step === 1 || step === 2) && cvParsing} className="btn-primary flex-1">
             Continue
           </button>
         ) : (

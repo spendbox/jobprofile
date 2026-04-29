@@ -293,16 +293,19 @@ export function ContactedRow({
       {/* Expanded detail */}
       {expanded && (
         <div className="border-t border-slate-100 bg-white p-4 space-y-4">
-          {/* Identity */}
+          {/* Identity + profile link */}
           <div className="flex items-center gap-4">
             <Avatar name={name} size="lg" src={profile?.user_profiles?.avatar_url} />
-            <div>
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2">
                 <p className="font-bold text-slate-900">{name}</p>
                 {profile?.user_profiles?.is_verified && <VerifiedBadge />}
               </div>
               <p className="text-sm text-slate-500 mt-0.5">{profile?.role_title}</p>
             </div>
+            <Link href={`/profile/${request.profile_id}`} target="_blank" className="btn-secondary text-xs py-1.5 flex-shrink-0">
+              View Profile →
+            </Link>
           </div>
 
           {/* AI score */}
@@ -384,13 +387,6 @@ export function ContactedRow({
                 )}
               </div>
             )}
-          </div>
-
-          {/* Profile link */}
-          <div className="flex flex-wrap gap-2">
-            <Link href={`/profile/${request.profile_id}`} target="_blank" className="btn-secondary text-xs py-2">
-              View Full Profile →
-            </Link>
           </div>
 
           {/* Archive / Unarchive */}

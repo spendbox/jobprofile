@@ -203,7 +203,7 @@ export default function PipelinePage() {
     const res = await fetch(`/api/talent-finds/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: editDesc, requirements_text: editReqs || null }),
+      body: JSON.stringify({ requirements_text: editReqs || null }),
     })
     if (res.ok) setFind(await res.json())
     setSavingSettings(false)
@@ -521,6 +521,32 @@ export default function PipelinePage() {
               </button>
             </div>
             <div className="overflow-y-auto p-5 space-y-4 flex-1">
+              {/* Locked fields notice */}
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-xs text-amber-700 leading-relaxed">Some fields are locked after publishing to maintain fairness for candidates who already received this pipeline.</p>
+              </div>
+
+              {/* Locked: Role title */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Role Title</p>
+                  <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <p className="text-sm font-semibold text-slate-700 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">{find.role_title}</p>
+              </div>
+
+              {/* Locked: Job description */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Job Description</p>
+                  <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">{find.description}</p>
+              </div>
+
               {(find.salary_min || find.salary_max) ? (
                 <div className="flex gap-4 text-sm">
                   <div><span className="text-slate-400 text-xs font-medium">Salary</span><p className="font-semibold text-slate-800">${(find.salary_min ?? 0).toLocaleString()} – ${(find.salary_max ?? 0).toLocaleString()}</p></div>
@@ -537,14 +563,13 @@ export default function PipelinePage() {
                   </div>
                 </div>
               )}
+
+              {/* Editable: Requirements */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Job Description</label>
-                <textarea rows={6} className="input-base w-full resize-none text-sm" value={editDesc} onChange={(e) => setEditDesc(e.target.value)} />
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Requirements</label>
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Requirements <span className="text-slate-300 font-normal normal-case">(editable)</span></label>
                 <textarea rows={4} className="input-base w-full resize-none text-sm" placeholder="Additional requirements…" value={editReqs} onChange={(e) => setEditReqs(e.target.value)} />
               </div>
+
               {(find.custom_questions as string[])?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Screening Questions</p>

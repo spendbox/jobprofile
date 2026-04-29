@@ -87,25 +87,25 @@ function RequestModal({
         </div>
 
         {/* Scrollable body */}
-        <div className="overflow-y-auto flex-1 px-5 py-4 space-y-4">
+        <div className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-4 space-y-4">
           {request.message && (
             <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Message from employer</p>
-              <p className="text-sm text-slate-700 leading-relaxed">&ldquo;{request.message}&rdquo;</p>
+              <p className="text-sm text-slate-700 leading-relaxed break-words">&ldquo;{request.message}&rdquo;</p>
             </div>
           )}
 
           {find?.description && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">About the role</p>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{find.description}</p>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{find.description}</p>
             </div>
           )}
 
           {find?.requirements_text && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Requirements</p>
-              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-line">{find.requirements_text}</p>
+              <p className="text-sm text-slate-700 leading-relaxed whitespace-pre-wrap break-words">{find.requirements_text}</p>
             </div>
           )}
 
@@ -119,17 +119,17 @@ function RequestModal({
                 const key = `q${i}`
                 return (
                   <div key={i} className="space-y-1.5">
-                    <label className="text-sm text-slate-700 font-medium block">
+                    <label className="text-sm text-slate-700 font-medium block break-words">
                       {i + 1}. {q}
                     </label>
                     {isViewOnly ? (
-                      <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100">
+                      <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 break-words">
                         {existingAnswers[key] || <span className="text-slate-400 italic">No answer provided</span>}
                       </p>
                     ) : (
                       <textarea
                         rows={2}
-                        className="input-base w-full resize-none text-sm"
+                        className="input-base w-full min-w-0 resize-none text-sm"
                         placeholder="Your answer…"
                         value={answers[key] ?? ''}
                         onChange={(e) => setAnswers((prev) => ({ ...prev, [key]: e.target.value }))}
@@ -150,9 +150,9 @@ function RequestModal({
                   <div key={s} className={`h-2 rounded-full flex-1 transition-colors ${i <= stageIdx ? 'bg-indigo-500' : 'bg-slate-200'}`} title={STAGE_LABELS[s]} />
                 ))}
               </div>
-              <div className="flex justify-between">
+              <div className="flex justify-between overflow-hidden">
                 {PIPELINE_STAGES.map((s, i) => (
-                  <span key={s} className={`text-[9px] font-medium ${i <= stageIdx ? 'text-indigo-500' : 'text-slate-300'}`}>
+                  <span key={s} className={`text-[9px] font-medium truncate flex-1 text-center first:text-left last:text-right ${i <= stageIdx ? 'text-indigo-500' : 'text-slate-300'}`}>
                     {STAGE_LABELS[s]}
                   </span>
                 ))}
