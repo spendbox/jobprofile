@@ -44,14 +44,8 @@ export default function SignupPage() {
     if (!data.user) { setError('Something went wrong. Please try again.'); setLoading(false); return }
 
     // Profile row is created automatically by the handle_new_user DB trigger.
-    // If there's a session the user is signed in immediately (email confirm off).
-    // If not, they need to confirm their email first.
-    if (data.session) {
-      router.push(role === 'employer' ? '/dashboard/employer' : '/dashboard/talent')
-      router.refresh()
-    } else {
-      router.push('/auth/check-email')
-    }
+    // Redirect to email verification (PIN) regardless of whether Supabase email confirm is on.
+    router.push('/auth/verify-email')
   }
 
   return (

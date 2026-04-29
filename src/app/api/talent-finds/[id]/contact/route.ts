@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { sendInterviewRequestEmail } from '@/lib/email'
+import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -9,10 +12,10 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  // Verify ownership
+  // Verify ownership and get find details for notification
   const { data: find } = await supabase
     .from('talent_finds')
-    .select('id')
+    .select('id, role_title, employment_type, work_arrangement, salary_min, salary_max')
     .eq('id', id)
     .eq('employer_id', user.id)
     .single()
@@ -50,9 +53,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (insertErr) return NextResponse.json({ error: insertErr.message }, { status: 500 })
   }
 
-  // Re-associate existing IRs to this pipeline.
-  // Still-pending: just update the pipeline link.
-  // Already responded (accepted/declined): reset to pending so talent must actively accept the new invite.
+  // Re-associate existing IRs to this pipeline
   if (alreadyExist.length > 0) {
     const stillPending = existingRows
       .filter((r: { profile_id: string; status: string }) => r.status === 'pending')
@@ -83,6 +84,50 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     .update({ contacted: true })
     .eq('talent_find_id', id)
     .in('profile_id', profile_ids)
+
+  // ── Send notification emails (best-effort) ──────────────────────────────────
+  try {
+    const admin = createAdminClient()
+    const { data: employerProfile } = await supabase
+      .from('user_profiles')
+      .select('full_name, company_name')
+      .eq('id', user.id)
+      .single()
+    const companyName = employerProfile?.company_name ?? employerProfile?.full_name ?? 'An employer'
+
+    const salaryText = (find.salary_min || find.salary_max)
+      ? `$${(find.salary_min ?? 0).toLocaleString()}${find.salary_max ? ` – $${find.salary_max.toLocaleString()}` : '+'}`
+      : undefined
+
+    // Get user_ids for the contacted profiles
+    const { data: profileRows } = await supabase
+      .from('profiles')
+      .select('id, user_id, user_profiles(full_name)')
+      .in('id', profile_ids)
+
+    if (profileRows) {
+      for (const p of profileRows) {
+        const userId = p.user_id as string
+        try {
+          const { data: authUser } = await admin.auth.admin.getUserById(userId)
+          const email = authUser.user?.email
+          const name = (p.user_profiles as { full_name?: string } | null)?.full_name ?? 'there'
+          if (email) {
+            sendInterviewRequestEmail(email, name, {
+              companyName,
+              roleTitle: find.role_title,
+              employmentType: EMPLOYMENT_TYPE_LABELS[find.employment_type as keyof typeof EMPLOYMENT_TYPE_LABELS] ?? find.employment_type,
+              workArrangement: WORK_ARRANGEMENT_LABELS[find.work_arrangement as keyof typeof WORK_ARRANGEMENT_LABELS] ?? find.work_arrangement,
+              salaryText,
+              message: message?.trim() || undefined,
+            }).catch(console.error)
+          }
+        } catch { /* skip individual failures */ }
+      }
+    }
+  } catch (e) {
+    console.error('Notification email error:', e)
+  }
 
   return NextResponse.json({ contacted: profile_ids.length })
 }

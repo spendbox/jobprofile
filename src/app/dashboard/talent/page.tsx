@@ -19,12 +19,14 @@ function RequestModal({
   request,
   onClose,
   onRespond,
+  onAcceptOffer,
   responding,
   isViewOnly = false,
 }: {
   request: InterviewRequest
   onClose: () => void
   onRespond: (id: string, decision: 'accepted' | 'declined', answers: Record<string, string>) => void
+  onAcceptOffer?: (id: string) => void
   responding: boolean
   isViewOnly?: boolean
 }) {
@@ -36,6 +38,7 @@ function RequestModal({
 
   const existingAnswers = (request.question_answers ?? {}) as Record<string, string>
   const [answers, setAnswers] = useState<Record<string, string>>(existingAnswers)
+  const [acceptingOffer, setAcceptingOffer] = useState(false)
 
   const allAnswered = questions.every((_, i) => (answers[`q${i}`] ?? '').trim().length > 0)
   const canAccept = questions.length === 0 || allAnswered
@@ -45,6 +48,13 @@ function RequestModal({
   const salaryText = find && (find.salary_min || find.salary_max)
     ? `$${(find.salary_min ?? 0).toLocaleString()}${find.salary_max ? ` – $${find.salary_max.toLocaleString()}` : '+'}`
     : null
+
+  const handleAcceptOffer = async () => {
+    if (!onAcceptOffer) return
+    setAcceptingOffer(true)
+    await onAcceptOffer(request.id)
+    setAcceptingOffer(false)
+  }
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60" onClick={onClose}>
@@ -171,6 +181,41 @@ function RequestModal({
             </div>
           )}
 
+          {/* Interview details */}
+          {isViewOnly && request.stage === 'interview' && request.interview_method && (
+            <div className="bg-violet-50 border border-violet-100 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-violet-600 uppercase tracking-wide">Interview details</p>
+              <div className="space-y-1.5">
+                <p className="text-sm text-slate-700"><span className="font-semibold">Method:</span> {request.interview_method}</p>
+                {request.interview_link && (
+                  <p className="text-sm text-slate-700 break-all">
+                    <span className="font-semibold">Link:</span>{' '}
+                    <a href={request.interview_link} target="_blank" rel="noopener noreferrer" className="text-indigo-500 hover:underline">{request.interview_link}</a>
+                  </p>
+                )}
+                {request.interview_notes && (
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700">Notes:</p>
+                    <p className="text-sm text-slate-600 whitespace-pre-line mt-0.5">{request.interview_notes}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Offer details */}
+          {isViewOnly && (request.stage === 'offer' || request.stage === 'hired') && request.offer_details && (
+            <div className="bg-amber-50 border border-amber-100 rounded-xl px-4 py-3 space-y-2">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-semibold text-amber-700 uppercase tracking-wide">Offer details</p>
+                {request.offer_accepted && (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Accepted</span>
+                )}
+              </div>
+              <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{request.offer_details}</p>
+            </div>
+          )}
+
           {/* Stage progress (view-only) */}
           {isViewOnly && request.stage === 'rejected' && (
             <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
@@ -200,9 +245,20 @@ function RequestModal({
         {/* Footer actions */}
         <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
           {isViewOnly ? (
-            <button onClick={onClose} className="flex-1 text-sm px-4 py-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors">
-              Close
-            </button>
+            <>
+              <button onClick={onClose} className={`${request.stage === 'offer' && !request.offer_accepted && request.offer_details ? 'flex-none' : 'flex-1'} text-sm px-4 py-3 rounded-xl border border-slate-200 text-slate-700 hover:bg-slate-50 font-semibold transition-colors`}>
+                Close
+              </button>
+              {request.stage === 'offer' && !request.offer_accepted && request.offer_details && onAcceptOffer && (
+                <button
+                  onClick={handleAcceptOffer}
+                  disabled={acceptingOffer}
+                  className="flex-1 text-sm px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold transition-colors disabled:opacity-50"
+                >
+                  {acceptingOffer ? 'Accepting…' : 'Accept Offer →'}
+                </button>
+              )}
+            </>
           ) : (
             <>
               <button
@@ -303,24 +359,46 @@ export default function TalentDashboard() {
 
   const handleRespond = async (requestId: string, decision: 'accepted' | 'declined', answers: Record<string, string>) => {
     setResponding(requestId)
-    const { data } = await supabase
-      .from('interview_requests')
-      .update({
-        status: decision,
-        stage: decision === 'accepted' ? 'interested' : 'discovered',
-        question_answers: Object.keys(answers).length > 0 ? answers : null,
-      })
-      .eq('id', requestId)
-      .select('*, employer:user_profiles!ir_employer_user_profiles_fkey(*), talent_find:talent_finds(*)')
-      .single()
-    if (data) {
+    // Route through API so server can send employer notification
+    const body: Record<string, unknown> = {
+      status: decision,
+      stage: decision === 'accepted' ? 'interested' : 'discovered',
+    }
+    if (Object.keys(answers).length > 0) body.question_answers = answers
+    const res = await fetch(`/api/interview-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      // Re-fetch with full relations for state update
+      const { data } = await supabase
+        .from('interview_requests')
+        .select('*, employer:user_profiles!ir_employer_user_profiles_fkey(*), talent_find:talent_finds(*)')
+        .eq('id', requestId)
+        .single()
       setPendingRequests((prev) => prev.filter((r) => r.id !== requestId))
-      if (decision === 'accepted') {
+      if (decision === 'accepted' && data) {
         setActiveRequests((prev) => [data as InterviewRequest, ...prev])
       }
     }
     setSelectedRequest(null)
     setResponding(null)
+  }
+
+  const handleAcceptOffer = async (requestId: string) => {
+    const res = await fetch(`/api/interview-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ offer_accepted: true }),
+    })
+    if (res.ok) {
+      setActiveRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, offer_accepted: true } : r))
+      if (selectedActiveRequest?.id === requestId) {
+        setSelectedActiveRequest((prev) => prev ? { ...prev, offer_accepted: true } : prev)
+      }
+    }
   }
 
   if (loadingAuth || loading) {
@@ -557,6 +635,7 @@ export default function TalentDashboard() {
           request={selectedActiveRequest}
           onClose={() => setSelectedActiveRequest(null)}
           onRespond={() => {}}
+          onAcceptOffer={handleAcceptOffer}
           responding={false}
           isViewOnly
         />

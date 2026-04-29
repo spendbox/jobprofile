@@ -22,6 +22,7 @@ export interface UserProfile {
   company_hq_state?: string
   company_timezone?: string
   company_profile_complete?: boolean
+  email_verified?: boolean
   created_at: string
 }
 
@@ -140,6 +141,13 @@ export interface InterviewRequest {
   talent_find?: TalentFind
   star_rating?: number
   question_answers?: Record<string, string>
+  // Interview details (set when employer moves to 'interview' stage)
+  interview_method?: string
+  interview_link?: string
+  interview_notes?: string
+  // Offer details (set when employer moves to 'offer' stage)
+  offer_details?: string
+  offer_accepted?: boolean
   created_at: string
   updated_at: string
   profiles?: TalentProfile & { user_profiles?: UserProfile }

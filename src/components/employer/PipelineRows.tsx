@@ -8,20 +8,22 @@ import { STAGE_LABELS } from '@/types'
 
 const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired']
 
+const INTERVIEW_METHODS = [
+  { value: 'Google Meet', label: 'Google Meet' },
+  { value: 'Zoom', label: 'Zoom' },
+  { value: 'Microsoft Teams', label: 'Microsoft Teams' },
+  { value: 'Phone call', label: 'Phone call' },
+  { value: 'In person', label: 'In person' },
+  { value: 'Other', label: 'Other' },
+]
+
 // ─── StarRating ───────────────────────────────────────────────────────────────
 function StarRating({ value, onChange }: { value?: number; onChange: (v: number) => void }) {
   const [hover, setHover] = useState(0)
   return (
     <div className="flex gap-0.5">
       {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          onMouseEnter={() => setHover(n)}
-          onMouseLeave={() => setHover(0)}
-          className="text-xl leading-none transition-colors"
-        >
+        <button key={n} type="button" onClick={() => onChange(n)} onMouseEnter={() => setHover(n)} onMouseLeave={() => setHover(0)} className="text-xl leading-none transition-colors">
           <span className={(hover || value || 0) >= n ? 'text-amber-400' : 'text-slate-200'}>★</span>
         </button>
       ))}
@@ -29,7 +31,6 @@ function StarRating({ value, onChange }: { value?: number; onChange: (v: number)
   )
 }
 
-// ─── Verified badge ───────────────────────────────────────────────────────────
 function VerifiedBadge() {
   return (
     <span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-indigo-600 rounded-full flex-shrink-0" title="Verified">
@@ -40,7 +41,6 @@ function VerifiedBadge() {
   )
 }
 
-// ─── ChevronIcon ──────────────────────────────────────────────────────────────
 function ChevronIcon({ open }: { open: boolean }) {
   return (
     <svg className={`w-4 h-4 text-slate-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -49,17 +49,82 @@ function ChevronIcon({ open }: { open: boolean }) {
   )
 }
 
+// ─── InterviewModal ───────────────────────────────────────────────────────────
+function InterviewModal({ onConfirm, onClose }: { onConfirm: (method: string, link: string, notes: string) => void; onClose: () => void }) {
+  const [method, setMethod] = useState('')
+  const [link, setLink] = useState('')
+  const [notes, setNotes] = useState('')
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-900">Schedule interview</h3>
+          <p className="text-xs text-slate-500 mt-0.5">The candidate will be notified with these details.</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="section-label mb-1.5 block">Interview method <span className="text-red-400">*</span></label>
+            <select className="input-base" value={method} onChange={(e) => setMethod(e.target.value)}>
+              <option value="">Select method…</option>
+              {INTERVIEW_METHODS.map((m) => <option key={m.value} value={m.value}>{m.label}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="section-label mb-1.5 block">Meeting link / location</label>
+            <input type="text" className="input-base" value={link} onChange={(e) => setLink(e.target.value)} placeholder="https://meet.google.com/… or address" />
+          </div>
+          <div>
+            <label className="section-label mb-1.5 block">Additional notes</label>
+            <textarea rows={2} className="input-base resize-none" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Date, time, what to prepare…" />
+          </div>
+        </div>
+        <div className="p-5 border-t border-slate-100 flex gap-2">
+          <button onClick={onClose} className="flex-1 btn-secondary text-sm">Cancel</button>
+          <button onClick={() => method && onConfirm(method, link, notes)} disabled={!method} className="flex-1 btn-primary text-sm disabled:opacity-50">
+            Move to Interview →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ─── OfferModal ───────────────────────────────────────────────────────────────
+function OfferModal({ onConfirm, onClose }: { onConfirm: (details: string) => void; onClose: () => void }) {
+  const [details, setDetails] = useState('')
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-slate-100">
+          <h3 className="font-bold text-slate-900">Make an offer</h3>
+          <p className="text-xs text-slate-500 mt-0.5">The candidate will see these offer details in their dashboard.</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div>
+            <label className="section-label mb-1.5 block">Offer details <span className="text-red-400">*</span></label>
+            <textarea
+              rows={5}
+              className="input-base resize-none"
+              value={details}
+              onChange={(e) => setDetails(e.target.value)}
+              placeholder="Salary, start date, benefits, conditions, next steps…"
+            />
+          </div>
+        </div>
+        <div className="p-5 border-t border-slate-100 flex gap-2">
+          <button onClick={onClose} className="flex-1 btn-secondary text-sm">Cancel</button>
+          <button onClick={() => details.trim() && onConfirm(details.trim())} disabled={!details.trim()} className="flex-1 btn-primary text-sm disabled:opacity-50">
+            Send Offer →
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ─── UncontactedRow ───────────────────────────────────────────────────────────
 export function UncontactedRow({
-  candidate,
-  expanded,
-  onExpand,
-  selected,
-  onSelect,
-  onInvite,
-  inviting,
-  findId,
-  onTfcUpdate,
+  candidate, expanded, onExpand, selected, onSelect, onInvite, inviting, findId, onTfcUpdate,
 }: {
   candidate: TalentFindCandidate
   expanded: boolean
@@ -80,8 +145,7 @@ export function UncontactedRow({
     if (notes === (candidate.notes ?? '')) return
     setSaving(true)
     const res = await fetch(`/api/talent-finds/${findId}/candidates/${candidate.profile_id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes }),
     })
     if (res.ok) onTfcUpdate(candidate.profile_id, { notes })
@@ -90,8 +154,7 @@ export function UncontactedRow({
 
   const handleStar = async (rating: number) => {
     const res = await fetch(`/api/talent-finds/${findId}/candidates/${candidate.profile_id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ star_rating: rating }),
     })
     if (res.ok) onTfcUpdate(candidate.profile_id, { star_rating: rating })
@@ -99,15 +162,8 @@ export function UncontactedRow({
 
   return (
     <div className={`rounded-2xl border overflow-hidden transition-colors ${expanded ? 'border-indigo-200' : 'border-slate-100 bg-white'}`}>
-      {/* Row header */}
       <div className="flex items-center gap-3 px-4 py-3.5">
-        <input
-          type="checkbox"
-          checked={selected}
-          onChange={onSelect}
-          onClick={(e) => e.stopPropagation()}
-          className="accent-indigo-600 w-4 h-4 flex-shrink-0 cursor-pointer"
-        />
+        <input type="checkbox" checked={selected} onChange={onSelect} onClick={(e) => e.stopPropagation()} className="accent-indigo-600 w-4 h-4 flex-shrink-0 cursor-pointer" />
         <button onClick={onExpand} className="flex-1 flex items-center gap-3 text-left min-w-0">
           <Avatar name={name} size="sm" src={profile?.user_profiles?.avatar_url} />
           <div className="flex-1 min-w-0">
@@ -119,22 +175,15 @@ export function UncontactedRow({
           </div>
           <div className="flex flex-col items-end gap-1 flex-shrink-0 mr-1">
             <span className="text-[10px] font-bold text-indigo-500">{candidate.ai_score}%</span>
-            {candidate.star_rating && (
-              <span className="text-amber-400 text-xs leading-none">{'★'.repeat(candidate.star_rating)}</span>
-            )}
+            {candidate.star_rating && <span className="text-amber-400 text-xs leading-none">{'★'.repeat(candidate.star_rating)}</span>}
           </div>
           <ChevronIcon open={expanded} />
         </button>
-        <button
-          onClick={(e) => { e.stopPropagation(); onInvite() }}
-          disabled={inviting}
-          className="text-xs px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors disabled:opacity-50 flex-shrink-0"
-        >
+        <button onClick={(e) => { e.stopPropagation(); onInvite() }} disabled={inviting} className="text-xs px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 font-semibold transition-colors disabled:opacity-50 flex-shrink-0">
           {inviting ? '…' : 'Invite'}
         </button>
       </div>
 
-      {/* Expanded detail */}
       {expanded && (
         <div className="border-t border-slate-100 bg-white p-4 space-y-4">
           <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
@@ -142,18 +191,14 @@ export function UncontactedRow({
               <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">AI Match Score</p>
               <span className="text-xl font-black text-indigo-700">{candidate.ai_score}%</span>
             </div>
-            {candidate.ai_summary && (
-              <p className="text-xs text-indigo-600 leading-relaxed">{candidate.ai_summary}</p>
-            )}
+            {candidate.ai_summary && <p className="text-xs text-indigo-600 leading-relaxed">{candidate.ai_summary}</p>}
           </div>
 
           {(profile?.skills ?? []).length > 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Skills</p>
               <div className="flex flex-wrap gap-1.5">
-                {profile!.skills.slice(0, 10).map((s) => (
-                  <span key={s} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">{s}</span>
-                ))}
+                {profile!.skills.slice(0, 10).map((s) => <span key={s} className="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-medium">{s}</span>)}
               </div>
             </div>
           )}
@@ -165,9 +210,7 @@ export function UncontactedRow({
             </div>
           )}
 
-          {(profile?.years_experience ?? 0) > 0 && (
-            <p className="text-xs text-slate-500">{profile!.years_experience} years experience</p>
-          )}
+          {(profile?.years_experience ?? 0) > 0 && <p className="text-xs text-slate-500">{profile!.years_experience} years experience</p>}
 
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your rating</p>
@@ -176,26 +219,13 @@ export function UncontactedRow({
 
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Notes</p>
-            <textarea
-              rows={3}
-              className="input-base resize-none text-sm w-full"
-              placeholder="Add private notes…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={saveNotes}
-            />
+            <textarea rows={3} className="input-base resize-none text-sm w-full" placeholder="Add private notes…" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} />
             {saving && <p className="text-xs text-slate-400 mt-1">Saving…</p>}
           </div>
 
           <div className="flex gap-2 pt-1">
-            <Link href={`/profile/${candidate.profile_id}`} target="_blank" className="btn-secondary text-xs py-2">
-              View Profile →
-            </Link>
-            <button
-              onClick={onInvite}
-              disabled={inviting}
-              className="btn-primary text-xs py-2 flex-1 disabled:opacity-50"
-            >
+            <Link href={`/profile/${candidate.profile_id}`} target="_blank" className="btn-secondary text-xs py-2">View Profile →</Link>
+            <button onClick={onInvite} disabled={inviting} className="btn-primary text-xs py-2 flex-1 disabled:opacity-50">
               {inviting ? 'Inviting…' : 'Invite this candidate'}
             </button>
           </div>
@@ -207,24 +237,14 @@ export function UncontactedRow({
 
 // ─── ContactedRow ─────────────────────────────────────────────────────────────
 export function ContactedRow({
-  request,
-  tfc,
-  find,
-  expanded,
-  onExpand,
-  onStageChange,
-  onArchive,
-  onUnarchive,
-  onReject,
-  findId,
-  onTfcUpdate,
+  request, tfc, find, expanded, onExpand, onStageChange, onArchive, onUnarchive, onReject, findId, onTfcUpdate,
 }: {
   request: InterviewRequest
   tfc?: TalentFindCandidate
   find: TalentFind
   expanded: boolean
   onExpand: () => void
-  onStageChange: (id: string, stage: RequestStage) => void
+  onStageChange: (id: string, stage: RequestStage, extra?: Record<string, unknown>) => void
   onArchive: (id: string) => void
   onUnarchive: (id: string) => void
   onReject: (id: string) => void
@@ -236,13 +256,14 @@ export function ContactedRow({
   const currentIdx = STAGES.indexOf(request.stage)
   const [notes, setNotes] = useState(tfc?.notes ?? '')
   const [saving, setSaving] = useState(false)
+  const [showInterviewModal, setShowInterviewModal] = useState(false)
+  const [showOfferModal, setShowOfferModal] = useState(false)
 
   const saveNotes = async () => {
     if (notes === (tfc?.notes ?? '')) return
     setSaving(true)
     const res = await fetch(`/api/talent-finds/${findId}/candidates/${request.profile_id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ notes }),
     })
     if (res.ok) onTfcUpdate(request.profile_id, { notes })
@@ -251,11 +272,17 @@ export function ContactedRow({
 
   const handleStar = async (rating: number) => {
     const res = await fetch(`/api/talent-finds/${findId}/candidates/${request.profile_id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ star_rating: rating }),
     })
     if (res.ok) onTfcUpdate(request.profile_id, { star_rating: rating })
+  }
+
+  const handleNextStage = () => {
+    const nextStage = STAGES[currentIdx + 1]
+    if (nextStage === 'interview') { setShowInterviewModal(true); return }
+    if (nextStage === 'offer') { setShowOfferModal(true); return }
+    onStageChange(request.id, nextStage)
   }
 
   const questions = (find.custom_questions ?? []) as string[]
@@ -266,159 +293,181 @@ export function ContactedRow({
     : request.stage === 'offer' ? 'bg-amber-100 text-amber-700'
     : request.stage === 'interview' ? 'bg-violet-100 text-violet-700'
     : request.stage === 'interested' ? 'bg-indigo-100 text-indigo-700'
+    : request.stage === 'rejected' ? 'bg-red-100 text-red-500'
     : 'bg-slate-100 text-slate-600'
 
   return (
-    <div className={`rounded-2xl border overflow-hidden transition-colors ${expanded ? 'border-indigo-200' : 'border-slate-100 bg-white'}`}>
-      {/* Row header */}
-      <button onClick={onExpand} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition-colors">
-        <Avatar name={name} size="sm" src={profile?.user_profiles?.avatar_url} />
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
-            {profile?.user_profiles?.is_verified && <VerifiedBadge />}
-          </div>
-          <p className="text-xs text-slate-500 truncate mt-0.5">{profile?.role_title}</p>
-        </div>
-        <div className="flex flex-col items-end gap-1 flex-shrink-0 mr-1">
-          <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${stageBadgeClass}`}>
-            {STAGE_LABELS[request.stage]}
-          </span>
-          {tfc && <span className="text-[10px] font-bold text-indigo-500">{tfc.ai_score}%</span>}
-          {tfc?.star_rating && (
-            <span className="text-amber-400 text-xs leading-none">{'★'.repeat(tfc.star_rating)}</span>
-          )}
-        </div>
-        <ChevronIcon open={expanded} />
-      </button>
+    <>
+      {showInterviewModal && (
+        <InterviewModal
+          onClose={() => setShowInterviewModal(false)}
+          onConfirm={(method, link, notes) => {
+            setShowInterviewModal(false)
+            onStageChange(request.id, 'interview', { interview_method: method, interview_link: link || undefined, interview_notes: notes || undefined })
+          }}
+        />
+      )}
+      {showOfferModal && (
+        <OfferModal
+          onClose={() => setShowOfferModal(false)}
+          onConfirm={(details) => {
+            setShowOfferModal(false)
+            onStageChange(request.id, 'offer', { offer_details: details })
+          }}
+        />
+      )}
 
-      {/* Expanded detail */}
-      {expanded && (
-        <div className="border-t border-slate-100 bg-white p-4 space-y-4">
-          {/* Identity + profile link */}
-          <div className="flex items-center gap-4">
-            <Avatar name={name} size="lg" src={profile?.user_profiles?.avatar_url} />
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <p className="font-bold text-slate-900">{name}</p>
-                {profile?.user_profiles?.is_verified && <VerifiedBadge />}
-              </div>
-              <p className="text-sm text-slate-500 mt-0.5">{profile?.role_title}</p>
+      <div className={`rounded-2xl border overflow-hidden transition-colors ${expanded ? 'border-indigo-200' : 'border-slate-100 bg-white'}`}>
+        <button onClick={onExpand} className="w-full flex items-center gap-3 px-4 py-3.5 text-left hover:bg-slate-50 transition-colors">
+          <Avatar name={name} size="sm" src={profile?.user_profiles?.avatar_url} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
+              {profile?.user_profiles?.is_verified && <VerifiedBadge />}
             </div>
-            <Link href={`/profile/${request.profile_id}`} target="_blank" className="btn-secondary text-xs py-1.5 flex-shrink-0">
-              View Profile →
-            </Link>
+            <p className="text-xs text-slate-500 truncate mt-0.5">{profile?.role_title}</p>
           </div>
+          <div className="flex flex-col items-end gap-1 flex-shrink-0 mr-1">
+            <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${stageBadgeClass}`}>{STAGE_LABELS[request.stage]}</span>
+            {tfc && <span className="text-[10px] font-bold text-indigo-500">{tfc.ai_score}%</span>}
+            {tfc?.star_rating && <span className="text-amber-400 text-xs leading-none">{'★'.repeat(tfc.star_rating)}</span>}
+          </div>
+          <ChevronIcon open={expanded} />
+        </button>
 
-          {/* AI score */}
-          {tfc && (
-            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
-              <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">AI Match Score</p>
-                <span className="text-xl font-black text-indigo-700">{tfc.ai_score}%</span>
+        {expanded && (
+          <div className="border-t border-slate-100 bg-white p-4 space-y-4">
+            {/* Identity + profile link */}
+            <div className="flex items-center gap-4">
+              <Avatar name={name} size="lg" src={profile?.user_profiles?.avatar_url} />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <p className="font-bold text-slate-900">{name}</p>
+                  {profile?.user_profiles?.is_verified && <VerifiedBadge />}
+                </div>
+                <p className="text-sm text-slate-500 mt-0.5">{profile?.role_title}</p>
               </div>
-              {tfc.ai_summary && (
-                <p className="text-xs text-indigo-600 leading-relaxed">{tfc.ai_summary}</p>
-              )}
+              <Link href={`/profile/${request.profile_id}`} target="_blank" className="btn-secondary text-xs py-1.5 flex-shrink-0">View Profile →</Link>
             </div>
-          )}
 
-          {/* Star rating */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your rating</p>
-            <StarRating value={tfc?.star_rating} onChange={handleStar} />
-          </div>
+            {/* AI score */}
+            {tfc && (
+              <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
+                <div className="flex items-center justify-between mb-1">
+                  <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">AI Match Score</p>
+                  <span className="text-xl font-black text-indigo-700">{tfc.ai_score}%</span>
+                </div>
+                {tfc.ai_summary && <p className="text-xs text-indigo-600 leading-relaxed">{tfc.ai_summary}</p>}
+              </div>
+            )}
 
-          {/* Notes */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Notes</p>
-            <textarea
-              rows={3}
-              className="input-base resize-none text-sm w-full"
-              placeholder="Add private notes about this candidate…"
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={saveNotes}
-            />
-            {saving && <p className="text-xs text-slate-400 mt-1">Saving…</p>}
-          </div>
-
-          {/* Q&A */}
-          {questions.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Screening Q&A</p>
-              <div className="space-y-3">
-                {questions.map((q, i) => (
-                  <div key={i}>
-                    <p className="text-xs font-semibold text-slate-700 mb-1">{q}</p>
-                    <p className={`text-sm leading-relaxed p-2.5 rounded-lg border ${answers[`q${i}`] ? 'bg-white border-slate-200 text-slate-700' : 'bg-slate-50 border-slate-100 text-slate-400 italic'}`}>
-                      {answers[`q${i}`] || 'No answer yet'}
-                    </p>
+            {/* Interview details (shown when stage is interview) */}
+            {request.stage === 'interview' && request.interview_method && (
+              <div className="bg-violet-50 border border-violet-100 rounded-xl p-3.5 space-y-2">
+                <p className="text-xs font-bold text-violet-700 uppercase tracking-wide">Interview details</p>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-600">Method:</span>
+                  <span className="text-xs text-slate-700">{request.interview_method}</span>
+                </div>
+                {request.interview_link && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-semibold text-slate-600">Link:</span>
+                    <a href={request.interview_link} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-600 hover:underline break-all">{request.interview_link}</a>
                   </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Stage nav */}
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Pipeline stage</p>
-            {request.stage === 'discovered' ? (
-              <p className="text-xs text-slate-500 italic bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">
-                Waiting for candidate response…
-              </p>
-            ) : (
-              <div className="flex gap-2">
-                {/* For 'interested', prev would go back to 'discovered' (candidate-driven) — hide it.
-                    For interview/offer/hired, show full prev/next. */}
-                {request.stage !== 'interested' && currentIdx > 1 && (
-                  <button
-                    onClick={() => onStageChange(request.id, STAGES[currentIdx - 1])}
-                    className="flex-1 btn-secondary text-xs py-2"
-                  >
-                    ← {STAGE_LABELS[STAGES[currentIdx - 1]]}
-                  </button>
                 )}
-                {currentIdx < STAGES.length - 1 && (
-                  <button
-                    onClick={() => onStageChange(request.id, STAGES[currentIdx + 1])}
-                    className="flex-1 btn-primary text-xs py-2"
-                  >
-                    {STAGE_LABELS[STAGES[currentIdx + 1]]} →
-                  </button>
+                {request.interview_notes && (
+                  <div>
+                    <span className="text-xs font-semibold text-slate-600">Notes:</span>
+                    <p className="text-xs text-slate-700 mt-0.5 whitespace-pre-line">{request.interview_notes}</p>
+                  </div>
                 )}
               </div>
             )}
+
+            {/* Offer details (shown when stage is offer or hired) */}
+            {(request.stage === 'offer' || request.stage === 'hired') && request.offer_details && (
+              <div className="bg-amber-50 border border-amber-100 rounded-xl p-3.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold text-amber-700 uppercase tracking-wide">Offer details</p>
+                  {request.offer_accepted && <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Accepted</span>}
+                </div>
+                <p className="text-sm text-slate-700 whitespace-pre-line leading-relaxed">{request.offer_details}</p>
+              </div>
+            )}
+
+            {/* Star rating */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your rating</p>
+              <StarRating value={tfc?.star_rating} onChange={handleStar} />
+            </div>
+
+            {/* Notes */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Notes</p>
+              <textarea rows={3} className="input-base resize-none text-sm w-full" placeholder="Add private notes about this candidate…" value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={saveNotes} />
+              {saving && <p className="text-xs text-slate-400 mt-1">Saving…</p>}
+            </div>
+
+            {/* Q&A */}
+            {questions.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Screening Q&A</p>
+                <div className="space-y-3">
+                  {questions.map((q, i) => (
+                    <div key={i}>
+                      <p className="text-xs font-semibold text-slate-700 mb-1">{q}</p>
+                      <p className={`text-sm leading-relaxed p-2.5 rounded-lg border ${answers[`q${i}`] ? 'bg-white border-slate-200 text-slate-700' : 'bg-slate-50 border-slate-100 text-slate-400 italic'}`}>
+                        {answers[`q${i}`] || 'No answer yet'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Stage nav */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Pipeline stage</p>
+              {request.stage === 'discovered' ? (
+                <p className="text-xs text-slate-500 italic bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">Waiting for candidate response…</p>
+              ) : request.stage === 'rejected' ? (
+                <p className="text-xs text-red-400 italic bg-red-50 rounded-xl px-3 py-2.5 border border-red-100">This candidate has been rejected.</p>
+              ) : (
+                <div className="flex gap-2">
+                  {request.stage !== 'interested' && currentIdx > 1 && (
+                    <button onClick={() => onStageChange(request.id, STAGES[currentIdx - 1])} className="flex-1 btn-secondary text-xs py-2">
+                      ← {STAGE_LABELS[STAGES[currentIdx - 1]]}
+                    </button>
+                  )}
+                  {currentIdx < STAGES.length - 1 && (
+                    <button onClick={handleNextStage} className="flex-1 btn-primary text-xs py-2">
+                      {STAGE_LABELS[STAGES[currentIdx + 1]]} →
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Archive / Unarchive */}
+            {request.archived ? (
+              <button onClick={() => onUnarchive(request.id)} className="w-full text-xs py-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors">
+                Unarchive candidate
+              </button>
+            ) : (
+              <button onClick={() => onArchive(request.id)} className="w-full text-xs py-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors">
+                Archive candidate
+              </button>
+            )}
+
+            {/* Reject */}
+            {request.stage !== 'rejected' && (
+              <button onClick={() => onReject(request.id)} className="w-full text-xs py-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors">
+                Reject candidate
+              </button>
+            )}
           </div>
-
-          {/* Archive / Unarchive */}
-          {request.archived ? (
-            <button
-              onClick={() => onUnarchive(request.id)}
-              className="w-full text-xs py-2 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-colors"
-            >
-              Unarchive candidate
-            </button>
-          ) : (
-            <button
-              onClick={() => onArchive(request.id)}
-              className="w-full text-xs py-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
-            >
-              Archive candidate
-            </button>
-          )}
-
-          {/* Reject */}
-          {request.stage !== 'rejected' && (
-            <button
-              onClick={() => onReject(request.id)}
-              className="w-full text-xs py-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
-            >
-              Reject candidate
-            </button>
-          )}
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </>
   )
 }

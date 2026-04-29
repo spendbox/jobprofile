@@ -169,9 +169,17 @@ export default function PipelinePage() {
   const matchesCount = tfc.filter((c) => !c.contacted).length
 
   // ── Handlers ────────────────────────────────────────────────────────────────
-  const handleStageChange = async (requestId: string, stage: RequestStage) => {
-    await supabase.from('interview_requests').update({ stage }).eq('id', requestId)
-    setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, stage } : r))
+  const handleStageChange = async (requestId: string, stage: RequestStage, extra?: Record<string, unknown>) => {
+    const body = { stage, ...extra }
+    const res = await fetch(`/api/interview-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, ...updated } : r))
+    }
   }
 
   const handleArchive = async (requestId: string) => {
@@ -186,7 +194,11 @@ export default function PipelinePage() {
   }
 
   const handleReject = async (requestId: string) => {
-    await supabase.from('interview_requests').update({ stage: 'rejected', archived: false }).eq('id', requestId)
+    await fetch(`/api/interview-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'rejected' }),
+    })
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, stage: 'rejected' as RequestStage } : r))
     setExpandedProfileId(null)
   }
