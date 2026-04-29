@@ -44,3 +44,22 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
   return NextResponse.json(data)
 }
+
+export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  // Verify ownership first
+  const { data: find } = await supabase.from('talent_finds').select('id').eq('id', id).eq('employer_id', user.id).single()
+  if (!find) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Delete in order: candidates → requests → find
+  await supabase.from('talent_find_candidates').delete().eq('talent_find_id', id)
+  await supabase.from('interview_requests').delete().eq('talent_find_id', id)
+  const { error } = await supabase.from('talent_finds').delete().eq('id', id).eq('employer_id', user.id)
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+  return NextResponse.json({ ok: true })
+}

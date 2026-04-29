@@ -215,6 +215,7 @@ export function ContactedRow({
   onStageChange,
   onArchive,
   onUnarchive,
+  onReject,
   findId,
   onTfcUpdate,
 }: {
@@ -226,6 +227,7 @@ export function ContactedRow({
   onStageChange: (id: string, stage: RequestStage) => void
   onArchive: (id: string) => void
   onUnarchive: (id: string) => void
+  onReject: (id: string) => void
   findId: string
   onTfcUpdate: (profileId: string, patch: { notes?: string; star_rating?: number }) => void
 }) {
@@ -400,9 +402,19 @@ export function ContactedRow({
           ) : (
             <button
               onClick={() => onArchive(request.id)}
-              className="w-full text-xs py-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+              className="w-full text-xs py-2 text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-xl transition-colors"
             >
               Archive candidate
+            </button>
+          )}
+
+          {/* Reject */}
+          {request.stage !== 'rejected' && (
+            <button
+              onClick={() => onReject(request.id)}
+              className="w-full text-xs py-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors"
+            >
+              Reject candidate
             </button>
           )}
         </div>

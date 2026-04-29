@@ -11,9 +11,9 @@ import { UncontactedRow, ContactedRow } from '@/components/employer/PipelineRows
 import type { TalentFind, TalentFindCandidate, InterviewRequest, RequestStage } from '@/types'
 import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
 
-type ViewFilter = 'matches' | RequestStage
+type ViewFilter = 'matches' | RequestStage | 'notes' | 'responses'
 
-const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired']
+const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired', 'rejected']
 
 // ─── NavItem ──────────────────────────────────────────────────────────────────
 function NavItem({ icon, label, count, active, onClick }: {
@@ -63,6 +63,9 @@ export default function PipelinePage() {
   const [savingSettings, setSavingSettings] = useState(false)
   const [discoverLoading, setDiscoverLoading] = useState(false)
   const [discoverResult, setDiscoverResult] = useState<number | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
   // ── loadData ────────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
@@ -121,6 +124,8 @@ export default function PipelinePage() {
 
   const filteredRequests = useMemo(() => {
     return requests.filter((r) => {
+      if (isNotesView || isResponsesView) return false
+      if (activeFilter === 'rejected') return r.stage === 'rejected'
       if (!showArchived && r.archived) return false
       if (showArchived && !r.archived) return false
       if (activeFilter !== 'matches' && r.stage !== activeFilter) return false
@@ -140,9 +145,19 @@ export default function PipelinePage() {
   // ── Stage counts (non-archived only, for nav badges) ───────────────────────
   const stageCounts = useMemo(() =>
     STAGES.reduce((acc, s) => {
-      acc[s] = requests.filter((r) => !r.archived && r.stage === s).length
+      acc[s] = requests.filter((r) => s === 'rejected' ? r.stage === s : !r.archived && r.stage === s).length
       return acc
     }, {} as Record<string, number>),
+  [requests])
+
+  const notesCount = useMemo(() => {
+    const tfcWithNotes = tfc.filter((c) => c.notes?.trim()).length
+    const reqWithNotes = requests.filter((r) => r.notes?.trim()).length
+    return tfcWithNotes + reqWithNotes
+  }, [tfc, requests])
+
+  const responsesCount = useMemo(() =>
+    requests.filter((r) => r.question_answers && Object.keys(r.question_answers as Record<string, string>).length > 0).length,
   [requests])
 
   const matchesCount = tfc.filter((c) => !c.contacted).length
@@ -162,6 +177,23 @@ export default function PipelinePage() {
   const handleUnarchive = async (requestId: string) => {
     await supabase.from('interview_requests').update({ archived: false }).eq('id', requestId)
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, archived: false } : r))
+  }
+
+  const handleReject = async (requestId: string) => {
+    await supabase.from('interview_requests').update({ stage: 'rejected', archived: false }).eq('id', requestId)
+    setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, stage: 'rejected' as RequestStage } : r))
+    setExpandedProfileId(null)
+  }
+
+  const handleDelete = async () => {
+    if (!find || deleteConfirmText !== find.role_title) return
+    setDeleting(true)
+    try {
+      await fetch(`/api/talent-finds/${id}`, { method: 'DELETE' })
+      router.push('/dashboard/employer')
+    } catch {
+      setDeleting(false)
+    }
   }
 
   const handleInvite = async (profileIds: string[]) => {
@@ -232,8 +264,13 @@ export default function PipelinePage() {
   }
 
   const isMatchesView = activeFilter === 'matches'
+  const isNotesView = activeFilter === 'notes'
+  const isResponsesView = activeFilter === 'responses'
+  const isSpecialView = isMatchesView || isNotesView || isResponsesView
   const listItems = isMatchesView ? filteredMatches : filteredRequests
   const listTitle = activeFilter === 'matches' ? 'Matches'
+    : activeFilter === 'notes' ? 'Notes'
+    : activeFilter === 'responses' ? 'Responses'
     : STAGE_LABELS[activeFilter as RequestStage]
 
   // ── Sidebar ─────────────────────────────────────────────────────────────────
@@ -291,6 +328,36 @@ export default function PipelinePage() {
             onClick={() => navClick(filter as ViewFilter)}
           />
         ))}
+
+        {/* Rejected — red-tinted */}
+        <button
+          onClick={() => navClick('rejected')}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${
+            activeFilter === 'rejected' ? 'bg-red-500 text-white' : 'text-red-400 hover:bg-red-50'
+          }`}
+        >
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+          <span className="flex-1 text-left">Rejected</span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${activeFilter === 'rejected' ? 'bg-white/20 text-white' : 'bg-red-50 text-red-400'}`}>
+            {stageCounts['rejected'] ?? 0}
+          </span>
+        </button>
+
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Insights</p>
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
+          label="Notes"
+          count={notesCount}
+          active={activeFilter === 'notes'}
+          onClick={() => navClick('notes')}
+        />
+        <NavItem
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" /></svg>}
+          label="Responses"
+          count={responsesCount}
+          active={activeFilter === 'responses'}
+          onClick={() => navClick('responses')}
+        />
 
         <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Filter</p>
         <div className="px-2 space-y-2.5">
@@ -350,6 +417,17 @@ export default function PipelinePage() {
           </svg>
           Job settings
         </button>
+
+        {/* Delete pipeline */}
+        <button
+          onClick={() => { setDeleteConfirmText(''); setDeleteModalOpen(true) }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete pipeline
+        </button>
       </div>
     </div>
   )
@@ -391,9 +469,11 @@ export default function PipelinePage() {
           <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
             <div>
               <h1 className="font-bold text-slate-900 text-base">{listTitle}</h1>
-              <p className="text-sm text-slate-500 mt-0.5">{listItems.length} candidates</p>
+              {!isNotesView && !isResponsesView && (
+                <p className="text-sm text-slate-500 mt-0.5">{listItems.length} candidates</p>
+              )}
             </div>
-            {!isMatchesView && (
+            {!isSpecialView && activeFilter !== 'rejected' && (
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
@@ -406,6 +486,94 @@ export default function PipelinePage() {
               </select>
             )}
           </div>
+
+          {/* Notes view */}
+          {isNotesView && (() => {
+            const tfcNotes = tfc.filter((c) => c.notes?.trim()).map((c) => ({
+              name: c.profiles?.user_profiles?.full_name ?? 'Talent',
+              avatar: c.profiles?.user_profiles?.avatar_url,
+              role: c.profiles?.role_title ?? '',
+              note: c.notes ?? '',
+              profileId: c.profile_id,
+            }))
+            const reqNotes = requests.filter((r) => r.notes?.trim()).map((r) => ({
+              name: r.profiles?.user_profiles?.full_name ?? 'Talent',
+              avatar: r.profiles?.user_profiles?.avatar_url,
+              role: r.profiles?.role_title ?? '',
+              note: r.notes ?? '',
+              profileId: r.profile_id,
+            }))
+            const allNotes = [...reqNotes, ...tfcNotes.filter((n) => !reqNotes.find((rn) => rn.profileId === n.profileId))]
+            return allNotes.length === 0 ? (
+              <div className="card p-12 text-center">
+                <p className="font-semibold text-slate-700 mb-2">No notes yet</p>
+                <p className="text-sm text-slate-500">Add notes to candidates in the pipeline stages.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {allNotes.map((n) => (
+                  <div key={n.profileId} className="card p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden">
+                        {n.avatar ? <img src={n.avatar} alt="" className="w-full h-full object-cover" /> : n.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{n.name}</p>
+                        <p className="text-xs text-slate-400 truncate">{n.role}</p>
+                      </div>
+                      <Link href={`/profile/${n.profileId}`} target="_blank" className="ml-auto text-xs text-indigo-600 hover:underline flex-shrink-0">View →</Link>
+                    </div>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100 leading-relaxed">{n.note}</p>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Responses view */}
+          {isResponsesView && (() => {
+            const questions = (find.custom_questions ?? []) as string[]
+            const answered = requests.filter((r) => r.question_answers && Object.keys(r.question_answers as Record<string, string>).length > 0)
+            return questions.length === 0 ? (
+              <div className="card p-12 text-center">
+                <p className="font-semibold text-slate-700 mb-2">No screening questions</p>
+                <p className="text-sm text-slate-500">Add questions when creating your next pipeline.</p>
+              </div>
+            ) : answered.length === 0 ? (
+              <div className="card p-12 text-center">
+                <p className="font-semibold text-slate-700 mb-2">No responses yet</p>
+                <p className="text-sm text-slate-500">Candidate responses will appear here once they express interest.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {questions.map((q, qi) => (
+                  <div key={qi} className="card p-4">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Q{qi + 1}</p>
+                    <p className="text-sm font-semibold text-slate-800 mb-3 leading-snug">{q}</p>
+                    <div className="space-y-3">
+                      {answered.map((r) => {
+                        const ans = (r.question_answers as Record<string, string>)[`q${qi}`]
+                        if (!ans) return null
+                        const name = r.profiles?.user_profiles?.full_name ?? 'Talent'
+                        const avatar = r.profiles?.user_profiles?.avatar_url
+                        return (
+                          <div key={r.id} className="flex gap-3">
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden mt-0.5">
+                              {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : name.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-slate-700 mb-1">{name}</p>
+                              <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 leading-relaxed break-words">{ans}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
           {/* Uncontacted view */}
           {isMatchesView && (
@@ -473,7 +641,7 @@ export default function PipelinePage() {
           )}
 
           {/* Contacted (stage) view */}
-          {!isMatchesView && (
+          {!isSpecialView && (
             <>
               {filteredRequests.length === 0 ? (
                 <div className="card p-12 text-center">
@@ -495,6 +663,7 @@ export default function PipelinePage() {
                       onStageChange={handleStageChange}
                       onArchive={handleArchive}
                       onUnarchive={handleUnarchive}
+                      onReject={handleReject}
                       findId={id}
                       onTfcUpdate={updateTfc}
                     />
@@ -505,6 +674,35 @@ export default function PipelinePage() {
           )}
         </div>
       </div>
+
+      {/* Delete confirmation modal */}
+      {deleteModalOpen && find && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-slate-900 text-lg mb-1">Delete pipeline?</h3>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">This will permanently delete <strong>{find.role_title}</strong> and all associated candidates and requests. This cannot be undone.</p>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Type the pipeline name to confirm:</p>
+            <p className="text-xs text-slate-400 font-mono bg-slate-50 px-2 py-1.5 rounded mb-2 select-all">{find.role_title}</p>
+            <input
+              className="input-base w-full mb-4 text-sm"
+              placeholder="Type pipeline name…"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteConfirmText !== find.role_title || deleting}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Job settings modal */}
       {settingsOpen && (
