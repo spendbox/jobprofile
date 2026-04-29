@@ -10,6 +10,8 @@ import type { EmploymentType, WorkArrangement } from '@/types'
 import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
 import { COUNTRIES } from '@/lib/countries'
 import { COMMON_SKILLS } from '@/lib/skills'
+import { getSuggestedSkills } from '@/lib/roleSkills'
+import { getSuggestedQuestions } from '@/lib/roleQuestions'
 
 const EMPLOYMENT_TYPES: EmploymentType[] = ['fulltime', 'parttime', 'contract', 'volunteer', 'internship']
 const WORK_ARRANGEMENTS: WorkArrangement[] = ['remote', 'hybrid', 'onsite']
@@ -41,6 +43,7 @@ export default function NewTalentFindPage() {
   const [skillInput, setSkillInput] = useState('')
   const [skills, setSkills] = useState<string[]>([])
   const [skillSuggestions, setSkillSuggestions] = useState<string[]>([])
+  const [roleSkillSuggestions, setRoleSkillSuggestions] = useState<string[]>([])
   const [salaryMin, setSalaryMin] = useState('')
   const [salaryMax, setSalaryMax] = useState('')
 
@@ -49,15 +52,24 @@ export default function NewTalentFindPage() {
   const [requirementsText, setRequirementsText] = useState('')
   const [questions, setQuestions] = useState<string[]>([])
   const [newQuestion, setNewQuestion] = useState('')
+  const [questionSuggestions, setQuestionSuggestions] = useState<string[]>([])
 
   // Submission
   const [submitting, setSubmitting] = useState(false)
+  const [savingDraft, setSavingDraft] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
     if (!loadingAuth && !userProfile) router.push('/auth/login')
     if (userProfile?.user_role === 'talent') router.push('/dashboard/talent')
   }, [userProfile, loadingAuth, router])
+
+  useEffect(() => {
+    // Pre-fill hiring location from company HQ if available
+    if (userProfile?.company_hq_country && !hiringCountry) setHiringCountry(userProfile.company_hq_country)
+    if (userProfile?.company_hq_state && !hiringState) setHiringState(userProfile.company_hq_state)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userProfile])
 
   useEffect(() => {
     supabase.from('role_titles').select('title').order('title').then(({ data }) => {
@@ -75,9 +87,17 @@ export default function NewTalentFindPage() {
     return () => document.removeEventListener('mousedown', handleClick)
   }, [])
 
+  const applyRoleSuggestions = (title: string) => {
+    const suggested = getSuggestedSkills(title, skills)
+    setRoleSkillSuggestions(suggested)
+  }
+
   const addSkill = (value?: string) => {
     const t = (value ?? skillInput).trim()
-    if (t && !skills.includes(t)) setSkills((s) => [...s, t])
+    if (t && !skills.includes(t)) {
+      setSkills((s) => [...s, t])
+      setRoleSkillSuggestions((prev) => prev.filter((s) => s !== t))
+    }
     setSkillInput('')
     setSkillSuggestions([])
   }
@@ -94,17 +114,32 @@ export default function NewTalentFindPage() {
     }
   }
 
-  const addQuestion = () => {
-    const t = newQuestion.trim()
-    if (t && questions.length < MAX_QUESTIONS) {
-      setQuestions((q) => [...q, t])
-      setNewQuestion('')
+  const addQuestion = (q?: string) => {
+    const t = (q ?? newQuestion).trim()
+    if (t && questions.length < MAX_QUESTIONS && !questions.includes(t)) {
+      setQuestions((prev) => [...prev, t])
+      setQuestionSuggestions((prev) => prev.filter((s) => s !== t))
+      if (!q) setNewQuestion('')
     }
   }
 
   const validateStep = (): string => {
-    if (step === 1 && !roleTitle.trim()) return 'Please enter a role title.'
-    if (step === 3 && description.trim().length < 30) return 'Job description must be at least 30 characters.'
+    if (step === 1) {
+      if (!roleTitle.trim()) return 'Role title is required.'
+      if (!hiringCountry) return 'Please select a hiring country.'
+      if (!hiringState.trim()) return 'Please enter a state or region.'
+    }
+    if (step === 2) {
+      if (!minExp) return 'Please enter a minimum experience level.'
+      if (!maxExp) return 'Please enter a maximum experience level.'
+      if (skills.length === 0) return 'Please add at least one required skill.'
+      if (!salaryMin) return 'Please enter a minimum salary.'
+      if (!salaryMax) return 'Please enter a maximum salary.'
+    }
+    if (step === 3) {
+      if (description.trim().length < 30) return 'Job description must be at least 30 characters.'
+      if (requirementsText.trim().length < 20) return 'Requirements must be at least 20 characters.'
+    }
     return ''
   }
 
@@ -112,36 +147,40 @@ export default function NewTalentFindPage() {
     const err = validateStep()
     if (err) { setError(err); return }
     setError('')
-    setStep((s) => Math.min(s + 1, TOTAL_STEPS))
+    const nextStep = Math.min(step + 1, TOTAL_STEPS)
+    if (nextStep === 2 && roleSkillSuggestions.length === 0) applyRoleSuggestions(roleTitle)
+    if (nextStep === 3) setQuestionSuggestions(getSuggestedQuestions(roleTitle, questions))
+    setStep(nextStep)
   }
 
   const back = () => { setError(''); setStep((s) => Math.max(s - 1, 1)) }
+
+  const buildPayload = () => ({
+    role_title: roleTitle.trim(),
+    employment_type: employmentType,
+    work_arrangement: workArrangement,
+    hiring_country: hiringCountry || null,
+    hiring_state: hiringState.trim() || null,
+    min_experience: minExp ? Number(minExp) : null,
+    max_experience: maxExp ? Number(maxExp) : null,
+    skills,
+    salary_min: salaryMin ? Number(salaryMin) : null,
+    salary_max: salaryMax ? Number(salaryMax) : null,
+    description: description.trim(),
+    requirements_text: requirementsText.trim() || null,
+    custom_questions: questions,
+  })
 
   const handleSubmit = async () => {
     const err = validateStep()
     if (err) { setError(err); return }
     setError('')
     setSubmitting(true)
-
     try {
       const res = await fetch('/api/talent-finds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          role_title: roleTitle.trim(),
-          employment_type: employmentType,
-          work_arrangement: workArrangement,
-          hiring_country: hiringCountry.trim() || null,
-          hiring_state: hiringState.trim() || null,
-          min_experience: minExp ? Number(minExp) : null,
-          max_experience: maxExp ? Number(maxExp) : null,
-          skills,
-          salary_min: salaryMin ? Number(salaryMin) : null,
-          salary_max: salaryMax ? Number(salaryMax) : null,
-          description: description.trim(),
-          requirements_text: requirementsText.trim() || null,
-          custom_questions: questions,
-        }),
+        body: JSON.stringify(buildPayload()),
       })
       const json = await res.json()
       if (!res.ok) { setError(json.error ?? 'Something went wrong.'); setSubmitting(false); return }
@@ -149,6 +188,25 @@ export default function NewTalentFindPage() {
     } catch {
       setError('Network error. Please try again.')
       setSubmitting(false)
+    }
+  }
+
+  const handleSaveDraft = async () => {
+    if (!roleTitle.trim()) { setError('Role title is required to save a draft.'); return }
+    setError('')
+    setSavingDraft(true)
+    try {
+      const res = await fetch('/api/talent-finds', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...buildPayload(), status: 'draft' }),
+      })
+      const json = await res.json()
+      if (!res.ok) { setError(json.error ?? 'Something went wrong.'); setSavingDraft(false); return }
+      router.push('/dashboard/employer')
+    } catch {
+      setError('Network error. Please try again.')
+      setSavingDraft(false)
     }
   }
 
@@ -244,7 +302,7 @@ export default function NewTalentFindPage() {
 
             {/* Employment type */}
             <div>
-              <label className="label">Employment type</label>
+              <label className="label">Employment type <span className="text-red-500">*</span></label>
               <div className="flex flex-wrap gap-2">
                 {EMPLOYMENT_TYPES.map((t) => (
                   <button
@@ -265,7 +323,7 @@ export default function NewTalentFindPage() {
 
             {/* Work arrangement */}
             <div>
-              <label className="label">Work arrangement</label>
+              <label className="label">Work arrangement <span className="text-red-500">*</span></label>
               <div className="flex gap-2">
                 {WORK_ARRANGEMENTS.map((a) => (
                   <button
@@ -286,7 +344,7 @@ export default function NewTalentFindPage() {
 
             {/* Location */}
             <div>
-              <label className="label">Location <span className="text-slate-400 font-normal text-xs">(shown to candidates, optional)</span></label>
+              <label className="label">Hiring location <span className="text-red-500">*</span></label>
               <div className="grid grid-cols-2 gap-3">
                 <select
                   className="input-base"
@@ -298,7 +356,7 @@ export default function NewTalentFindPage() {
                 </select>
                 <input
                   className="input-base"
-                  placeholder="State / Region"
+                  placeholder="State / Region *"
                   value={hiringState}
                   onChange={(e) => setHiringState(e.target.value)}
                 />
@@ -311,7 +369,7 @@ export default function NewTalentFindPage() {
           <div className="space-y-5">
             {/* Experience */}
             <div>
-              <label className="label">Experience range (years) <span className="text-slate-400 font-normal text-xs">(used to filter candidates)</span></label>
+              <label className="label">Experience range (years) <span className="text-red-500">*</span></label>
               <div className="grid grid-cols-2 gap-3">
                 <input
                   type="number"
@@ -334,7 +392,27 @@ export default function NewTalentFindPage() {
 
             {/* Skills */}
             <div>
-              <label className="label">Skills needed <span className="text-slate-400 font-normal text-xs">(used to filter candidates)</span></label>
+              <label className="label">Skills needed <span className="text-red-500">*</span></label>
+
+              {/* Role-based skill suggestions */}
+              {roleSkillSuggestions.length > 0 && (
+                <div className="mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
+                  <p className="text-xs font-semibold text-indigo-700 mb-2">Suggested for {roleTitle} — tap to add:</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {roleSkillSuggestions.map((s) => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => addSkill(s)}
+                        className="text-xs px-2.5 py-1 bg-white border border-indigo-300 text-indigo-700 rounded-full hover:bg-indigo-100 transition-colors font-medium"
+                      >
+                        + {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="relative">
                 <div className="flex gap-2">
                   <input
@@ -373,7 +451,7 @@ export default function NewTalentFindPage() {
 
             {/* Salary */}
             <div>
-              <label className="label">Salary range (annual) <span className="text-slate-400 font-normal text-xs">(shown to candidates, optional)</span></label>
+              <label className="label">Salary range (annual) <span className="text-red-500">*</span></label>
               <div className="grid grid-cols-2 gap-3">
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">$</span>
@@ -404,6 +482,14 @@ export default function NewTalentFindPage() {
 
         {step === 3 && (
           <div className="space-y-5">
+            {/* Non-editable warning */}
+            <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+              <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <p className="text-xs text-amber-700 leading-relaxed">After publishing, the <strong>role title</strong> and <strong>job description</strong> cannot be edited. Please review carefully before creating.</p>
+            </div>
+
             {/* Description */}
             <div>
               <label className="label">Job description <span className="text-red-500">*</span></label>
@@ -416,29 +502,49 @@ export default function NewTalentFindPage() {
                 onChange={(e) => setDescription(e.target.value)}
               />
               <p className={`text-xs mt-1 ${description.length < 30 ? 'text-slate-400' : 'text-emerald-600'}`}>
-                {description.length} characters {description.length < 30 ? `(${30 - description.length} more needed)` : ''}
+                {description.length} characters {description.length < 30 ? `(${30 - description.length} more needed)` : '✓'}
               </p>
             </div>
 
             {/* Requirements */}
             <div>
-              <label className="label">
-                Requirements <span className="text-slate-400 font-normal text-xs">(optional — hiring doc, process details, NDA)</span>
-              </label>
+              <label className="label">Requirements <span className="text-red-500">*</span></label>
               <textarea
                 className="input-base resize-none"
                 rows={3}
-                placeholder="Any additional requirements, process details, or expectations…"
+                placeholder="List requirements, hiring process details, and expectations…"
                 value={requirementsText}
                 onChange={(e) => setRequirementsText(e.target.value)}
               />
+              {requirementsText.trim().length > 0 && requirementsText.trim().length < 20 && (
+                <p className="text-xs text-slate-400 mt-1">{20 - requirementsText.trim().length} more characters needed</p>
+              )}
             </div>
 
             {/* Screening questions */}
             <div>
               <label className="label">
-                Screening questions <span className="text-slate-400 font-normal text-xs">(optional — candidates answer when interested)</span>
+                Screening questions <span className="text-slate-400 font-normal text-xs">(candidates answer when interested)</span>
               </label>
+
+              {/* AI-suggested questions */}
+              {questionSuggestions.length > 0 && questions.length < MAX_QUESTIONS && (
+                <div className="mb-3 p-3 bg-violet-50 border border-violet-100 rounded-xl">
+                  <p className="text-xs font-semibold text-violet-700 mb-2">Suggested for {roleTitle}:</p>
+                  <div className="space-y-1.5">
+                    {questionSuggestions.filter((q) => !questions.includes(q)).slice(0, MAX_QUESTIONS - questions.length).map((q) => (
+                      <button
+                        key={q}
+                        type="button"
+                        onClick={() => addQuestion(q)}
+                        className="w-full text-left text-xs px-3 py-2 bg-white border border-violet-200 text-violet-800 rounded-lg hover:bg-violet-50 transition-colors leading-relaxed"
+                      >
+                        <span className="text-violet-400 mr-1.5">+</span>{q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {questions.length > 0 && (
                 <div className="space-y-2 mb-3">
@@ -471,7 +577,7 @@ export default function NewTalentFindPage() {
                   />
                   <button
                     type="button"
-                    onClick={addQuestion}
+                    onClick={() => addQuestion()}
                     disabled={!newQuestion.trim()}
                     className="btn-secondary flex-shrink-0 disabled:opacity-50"
                   >
@@ -496,7 +602,7 @@ export default function NewTalentFindPage() {
         {step > 1 && (
           <button
             onClick={back}
-            disabled={submitting}
+            disabled={submitting || savingDraft}
             className="btn-secondary flex-1 py-3 disabled:opacity-50"
           >
             ← Back
@@ -510,7 +616,7 @@ export default function NewTalentFindPage() {
         ) : (
           <button
             onClick={handleSubmit}
-            disabled={submitting}
+            disabled={submitting || savingDraft}
             className="btn-primary flex-1 py-3 font-bold disabled:opacity-70"
           >
             {submitting ? (
@@ -528,11 +634,21 @@ export default function NewTalentFindPage() {
         )}
       </div>
 
-      {step === TOTAL_STEPS && !submitting && (
-        <p className="text-xs text-slate-400 text-center mt-3">
-          Takes 5–15 seconds · Candidates ranked by AI before you see them
-        </p>
-      )}
+      {/* Draft + info */}
+      <div className="flex items-center justify-between mt-3">
+        <button
+          onClick={handleSaveDraft}
+          disabled={submitting || savingDraft || !roleTitle.trim()}
+          className="text-xs text-slate-400 hover:text-slate-600 transition-colors disabled:opacity-40"
+        >
+          {savingDraft ? 'Saving draft…' : 'Save as draft'}
+        </button>
+        {step === TOTAL_STEPS && !submitting && (
+          <p className="text-xs text-slate-400">
+            Takes 5–15 seconds · AI ranks candidates
+          </p>
+        )}
+      </div>
     </div>
   )
 }

@@ -39,11 +39,14 @@ export async function POST(req: NextRequest) {
     min_experience, max_experience,
     skills, salary_min, salary_max,
     description, requirements_text, custom_questions,
+    status: requestedStatus,
   } = body
 
-  if (!role_title || !employment_type || !work_arrangement || !description) {
+  if (!role_title || !employment_type || !work_arrangement) {
     return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
   }
+
+  const isDraft = requestedStatus === 'draft'
 
   // 1. Save the talent find
   const { data: find, error: findErr } = await supabase
@@ -60,15 +63,21 @@ export async function POST(req: NextRequest) {
       skills: skills ?? [],
       salary_min: salary_min || null,
       salary_max: salary_max || null,
-      description,
+      description: description || '',
       requirements_text: requirements_text || null,
       custom_questions: custom_questions ?? [],
+      status: isDraft ? 'draft' : 'active',
     })
     .select()
     .single()
 
   if (findErr || !find) {
     return NextResponse.json({ error: findErr?.message ?? 'Insert failed' }, { status: 500 })
+  }
+
+  // For drafts: skip candidate discovery and AI scoring
+  if (isDraft) {
+    return NextResponse.json({ talent_find_id: find.id, candidate_count: 0 })
   }
 
   // 2. Rule-filter profiles — progressive fallback so we always find candidates
