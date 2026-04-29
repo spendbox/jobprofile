@@ -19,29 +19,12 @@ Rules:
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
 
-// Setting workerSrc to '' forces pdfjs into fake-worker (in-process) mode,
-// which works in Node.js/serverless where no Worker global exists.
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
-
-  const doc = await pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: true,
-    disableFontFace: true,
-  }).promise
-
-  const pages: string[] = []
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p)
-    const content = await page.getTextContent()
-    pages.push(
-      content.items
-        .map((item) => ('str' in item ? (item as { str: string }).str : ''))
-        .join(' ')
-    )
-  }
-  return pages.join('\n')
+  // pdf-parse@1.x uses pdfjs-dist v2.x internally — pure Node.js, no DOMMatrix/canvas
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse')
+  const data = await pdfParse(buffer)
+  return data.text
 }
 
 export async function POST(req: NextRequest) {

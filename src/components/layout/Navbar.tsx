@@ -39,9 +39,9 @@ export function Navbar() {
 
   return (
     <header className="sticky top-0 z-50 bg-white border-b border-slate-200">
-      <div className="max-w-screen-lg mx-auto px-4 h-14 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2 font-bold text-indigo-600 text-lg">
-          <span className="w-7 h-7 bg-indigo-600 rounded-lg flex items-center justify-center">
+      <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between">
+        <Link href="/" className="flex items-center gap-2 font-bold text-slate-900 text-lg">
+          <span className="w-7 h-7 bg-slate-900 rounded-lg flex items-center justify-center">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
@@ -54,7 +54,7 @@ export function Navbar() {
             {userProfile ? (
               <div className="relative">
                 <button onClick={() => setMenuOpen(!menuOpen)} className="flex items-center gap-2 ml-1">
-                  <div className="relative w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold overflow-hidden">
+                  <div className="relative w-8 h-8 rounded-full bg-slate-100 text-slate-700 flex items-center justify-center text-xs font-bold overflow-hidden">
                     {userProfile.avatar_url ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={userProfile.avatar_url} alt="" className="w-full h-full object-cover" />

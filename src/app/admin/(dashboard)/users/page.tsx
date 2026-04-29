@@ -17,19 +17,25 @@ interface AdminUser {
   created_at: string
 }
 
+type MediaModal = { type: 'doc' | 'video'; url: string; name: string } | null
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<AdminUser[]>([])
   const [loading, setLoading] = useState(true)
   const [toggling, setToggling] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'verified'>('all')
+  const [mediaModal, setMediaModal] = useState<MediaModal>(null)
+  const [mediaLoading, setMediaLoading] = useState<string | null>(null)
 
-  useEffect(() => {
-    fetch('/api/admin/users')
+  const loadUsers = () => {
+    fetch(`/api/admin/users?t=${Date.now()}`, { cache: 'no-store' })
       .then((r) => r.json())
       .then((d) => { setUsers(d); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadUsers() }, [])
 
   const toggleVerify = async (user: AdminUser) => {
     setToggling(user.id)
@@ -41,25 +47,32 @@ export default function AdminUsersPage() {
       })
       if (res.ok) {
         const updated = await res.json()
+        // Re-fetch to confirm DB state rather than trusting optimistic update
         setUsers((prev) => prev.map((u) => u.id === user.id ? { ...u, ...updated } : u))
+      } else {
+        const err = await res.json()
+        alert(`Failed to update: ${err.error ?? 'Unknown error'}`)
       }
     } finally {
       setToggling(null)
     }
   }
 
-  const viewDoc = async (userId: string) => {
-    const res = await fetch(`/api/admin/users/${userId}/doc`)
-    if (!res.ok) { alert('No document found or could not generate URL.'); return }
-    const { url } = await res.json()
-    window.open(url, '_blank', 'noopener,noreferrer')
-  }
-
-  const viewVideo = async (userId: string) => {
-    const res = await fetch(`/api/admin/users/${userId}/liveness`)
-    if (!res.ok) { alert('No liveness video found or could not generate URL.'); return }
-    const { url } = await res.json()
-    window.open(url, '_blank', 'noopener,noreferrer')
+  const openMedia = async (userId: string, type: 'doc' | 'video', userName: string) => {
+    setMediaLoading(`${userId}-${type}`)
+    try {
+      const endpoint = type === 'doc' ? 'doc' : 'liveness'
+      const res = await fetch(`/api/admin/users/${userId}/${endpoint}`)
+      if (!res.ok) {
+        const err = await res.json()
+        alert(err.error ?? 'Could not load file. Check storage configuration.')
+        return
+      }
+      const { url } = await res.json()
+      setMediaModal({ type, url, name: userName })
+    } finally {
+      setMediaLoading(null)
+    }
   }
 
   const pendingCount = users.filter((u) => u.verification_doc_path && !u.is_verified).length
@@ -74,14 +87,6 @@ export default function AdminUsersPage() {
       u.full_name.toLowerCase().includes(search.toLowerCase()) ||
       u.email.toLowerCase().includes(search.toLowerCase())
     )
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="text-sm text-slate-500">Loading users…</div>
-      </div>
-    )
-  }
 
   return (
     <div>
@@ -122,7 +127,11 @@ export default function AdminUsersPage() {
         ))}
       </div>
 
-      {filtered.length === 0 ? (
+      {loading ? (
+        <div className="flex items-center justify-center min-h-64">
+          <div className="text-sm text-slate-500">Loading users…</div>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center">
           <p className="text-slate-400 font-medium">
             {search ? 'No users match your search.' : filter === 'pending' ? 'No pending verification requests.' : 'No talent users yet.'}
@@ -132,18 +141,11 @@ export default function AdminUsersPage() {
         <div className="space-y-3">
           {filtered.map((user) => {
             const hasPendingDoc = !!user.verification_doc_path && !user.is_verified
+            const loadingDoc = mediaLoading === `${user.id}-doc`
+            const loadingVid = mediaLoading === `${user.id}-video`
             return (
-              <div
-                key={user.id}
-                className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden"
-              >
-                {/* Accent stripe */}
-                <div className={`h-0.5 ${
-                  user.is_verified ? 'bg-emerald-500'
-                  : hasPendingDoc ? 'bg-amber-500'
-                  : 'bg-slate-700'
-                }`} />
-
+              <div key={user.id} className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden">
+                <div className={`h-0.5 ${user.is_verified ? 'bg-emerald-500' : hasPendingDoc ? 'bg-amber-500' : 'bg-slate-700'}`} />
                 <div className="p-5 flex flex-col sm:flex-row sm:items-center gap-4">
                   {/* Avatar */}
                   <div className="w-10 h-10 rounded-full bg-indigo-600/20 flex items-center justify-center flex-shrink-0 text-indigo-400 font-bold text-sm">
@@ -175,7 +177,7 @@ export default function AdminUsersPage() {
                         {user.verification_legal_name}
                       </p>
                     )}
-                    {hasPendingDoc && user.verification_liveness_phrase && (
+                    {user.verification_liveness_phrase && (
                       <div className="mt-1.5 inline-flex items-center gap-1.5 bg-indigo-500/10 border border-indigo-500/20 rounded-lg px-2.5 py-1">
                         <svg className="w-3 h-3 text-indigo-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                           <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.867v6.266a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
@@ -187,9 +189,7 @@ export default function AdminUsersPage() {
                     <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 flex-wrap">
                       <span>Joined {timeAgo(user.created_at)}</span>
                       {hasPendingDoc && user.verification_requested_at && (
-                        <span className="text-amber-500">
-                          Submitted {timeAgo(user.verification_requested_at)}
-                        </span>
+                        <span className="text-amber-500">Submitted {timeAgo(user.verification_requested_at)}</span>
                       )}
                       {user.is_verified && user.verified_at && (
                         <span className="text-emerald-500">Verified {timeAgo(user.verified_at)}</span>
@@ -201,24 +201,39 @@ export default function AdminUsersPage() {
                   <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                     {user.verification_liveness_path && (
                       <button
-                        onClick={() => viewVideo(user.id)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-colors flex items-center gap-1.5"
+                        onClick={() => openMedia(user.id, 'video', user.full_name)}
+                        disabled={!!mediaLoading}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.867v6.266a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                        </svg>
+                        {loadingVid ? (
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 10l4.553-2.069A1 1 0 0121 8.867v6.266a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        )}
                         View Video
                       </button>
                     )}
                     {user.verification_doc_path && (
                       <button
-                        onClick={() => viewDoc(user.id)}
-                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-colors flex items-center gap-1.5"
+                        onClick={() => openMedia(user.id, 'doc', user.full_name)}
+                        disabled={!!mediaLoading}
+                        className="px-3 py-2 rounded-xl text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 hover:border-slate-600 transition-colors flex items-center gap-1.5 disabled:opacity-50"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
+                        {loadingDoc ? (
+                          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        )}
                         View Doc
                       </button>
                     )}
@@ -231,13 +246,78 @@ export default function AdminUsersPage() {
                           : 'bg-emerald-600 hover:bg-emerald-700 text-white'
                       }`}
                     >
-                      {toggling === user.id ? '…' : user.is_verified ? 'Unverify' : 'Verify'}
+                      {toggling === user.id ? (
+                        <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                        </svg>
+                      ) : user.is_verified ? 'Unverify' : 'Verify'}
                     </button>
                   </div>
                 </div>
               </div>
             )
           })}
+        </div>
+      )}
+
+      {/* Media viewer modal */}
+      {mediaModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden">
+            {/* Modal header */}
+            <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
+              <div>
+                <p className="font-semibold text-white text-sm">
+                  {mediaModal.type === 'video' ? 'Liveness Video' : 'Identity Document'} — {mediaModal.name}
+                </p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {mediaModal.type === 'video' ? 'Verify the candidate says the correct liveness phrase.' : 'Check identity document details.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={mediaModal.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 text-slate-300 hover:text-white border border-slate-700 transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                  </svg>
+                  Open in tab
+                </a>
+                <button
+                  onClick={() => setMediaModal(null)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            {/* Media content */}
+            <div className="flex-1 overflow-auto bg-slate-950 flex items-center justify-center p-4 min-h-0">
+              {mediaModal.type === 'video' ? (
+                // eslint-disable-next-line jsx-a11y/media-has-caption
+                <video
+                  src={mediaModal.url}
+                  controls
+                  autoPlay
+                  className="max-w-full max-h-[60vh] rounded-xl"
+                  style={{ maxHeight: '60vh' }}
+                />
+              ) : (
+                <iframe
+                  src={mediaModal.url}
+                  className="w-full rounded-xl border border-slate-800"
+                  style={{ height: '60vh' }}
+                  title="Identity Document"
+                />
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
