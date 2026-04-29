@@ -53,7 +53,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
-          <p className="text-slate-500 mt-1 text-sm">Join TalentDeck — it&apos;s free</p>
+          <p className="text-slate-500 mt-1 text-sm">Join Folio Cafe — it&apos;s free</p>
         </div>
 
         <div className="card p-6">
@@ -171,6 +171,13 @@ export default function SignupPage() {
           <Link href="/auth/login" className="text-indigo-600 font-semibold hover:text-indigo-700">
             Sign in
           </Link>
+        </p>
+
+        <p className="text-center text-xs text-slate-400 mt-4">
+          By creating an account you agree to our{' '}
+          <Link href="/terms" className="hover:text-slate-600 underline underline-offset-2">Terms of Service</Link>
+          {' '}and{' '}
+          <Link href="/privacy" className="hover:text-slate-600 underline underline-offset-2">Privacy Policy</Link>.
         </p>
       </div>
     </div>

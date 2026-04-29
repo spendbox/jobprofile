@@ -56,7 +56,7 @@ function AdminNav({ onClose }: { onClose?: () => void }) {
           </svg>
         </span>
         <div>
-          <p className="font-bold text-white text-sm leading-none">TalentDeck</p>
+          <p className="font-bold text-white text-sm leading-none">Folio Cafe</p>
           <p className="text-[10px] text-slate-400 leading-none mt-0.5">Admin Panel</p>
         </div>
       </div>
@@ -128,7 +128,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <span className="font-bold text-white text-sm">TalentDeck Admin</span>
+          <span className="font-bold text-white text-sm">Folio Cafe Admin</span>
         </div>
 
         <main className="flex-1 p-5 sm:p-8">

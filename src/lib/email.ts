@@ -1,8 +1,13 @@
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
-const FROM = process.env.EMAIL_FROM ?? 'TalentDeck <noreply@talentdeck.com>'
-const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://talentdeck.com'
+let _resend: Resend | null = null
+function getResend() {
+  if (!_resend) _resend = new Resend(process.env.RESEND_API_KEY)
+  return _resend
+}
+
+const FROM = process.env.EMAIL_FROM ?? 'Folio Cafe <notifications@folio.cafe>'
+const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://folio.cafe'
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
 const BASE = `
@@ -34,22 +39,22 @@ const BASE = `
 
 const FOOTER = `
   <div class="footer">
-    <p>TalentDeck &mdash; The talent discovery platform<br>
+    <p>Folio Cafe &mdash; The talent discovery platform<br>
     You received this email because of activity on your account.<br>
-    <a href="${APP_URL}" style="color:#4f46e5;text-decoration:none">talentdeck.com</a></p>
+    <a href="${APP_URL}" style="color:#4f46e5;text-decoration:none">folio.cafe</a></p>
   </div></div></body></html>`
 
 // ─── Email verification PIN ───────────────────────────────────────────────────
 export async function sendVerificationEmail(to: string, name: string, pin: string) {
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
-    subject: `${pin} is your TalentDeck verification code`,
+    subject: `${pin} is your Folio Cafe verification code`,
     html: `${BASE}
       <div class="wrap">
         <div class="header">
           <h1>Verify your email</h1>
-          <p>Welcome to TalentDeck, ${name}!</p>
+          <p>Welcome to Folio Cafe, ${name}!</p>
         </div>
         <div class="body">
           <p>Use the code below to verify your email address. It expires in <strong>15 minutes</strong>.</p>
@@ -57,7 +62,7 @@ export async function sendVerificationEmail(to: string, name: string, pin: strin
             <span>${pin}</span>
             <small>Do not share this code with anyone.</small>
           </div>
-          <p style="font-size:13px;color:#94a3b8">If you didn't create a TalentDeck account, you can safely ignore this email.</p>
+          <p style="font-size:13px;color:#94a3b8">If you didn't create a Folio Cafe account, you can safely ignore this email.</p>
         </div>
         ${FOOTER}`,
   })
@@ -73,7 +78,7 @@ export async function sendInterviewRequestEmail(to: string, talentName: string, 
   message?: string
 }) {
   const { companyName, roleTitle, employmentType, workArrangement, salaryText, message } = opts
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${companyName} sent you an interview request`,
@@ -96,7 +101,7 @@ export async function sendInterviewRequestEmail(to: string, talentName: string, 
             </div>
           </div>
           ${message ? `<div class="detail-box"><div class="label">Message from ${companyName}</div><div class="value" style="font-weight:400;font-style:italic">&ldquo;${message}&rdquo;</div></div>` : ''}
-          <p>Log in to TalentDeck to review the full job details and respond.</p>
+          <p>Log in to Folio Cafe to review the full job details and respond.</p>
           <a href="${APP_URL}/dashboard/talent" class="cta">View Request &rarr;</a>
         </div>
         ${FOOTER}`,
@@ -112,7 +117,7 @@ export async function sendInterviewScheduledEmail(to: string, talentName: string
   notes?: string
 }) {
   const { companyName, roleTitle, method, link, notes } = opts
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${companyName} wants to interview you for ${roleTitle}`,
@@ -144,7 +149,7 @@ export async function sendOfferEmail(to: string, talentName: string, opts: {
   offerDetails: string
 }) {
   const { companyName, roleTitle, offerDetails } = opts
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${companyName} has made you an offer for ${roleTitle}`,
@@ -161,7 +166,7 @@ export async function sendOfferEmail(to: string, talentName: string, opts: {
             <div class="label">Offer details</div>
             <div class="value" style="font-weight:400;white-space:pre-line">${offerDetails}</div>
           </div>
-          <p>Log in to TalentDeck to review and respond to this offer.</p>
+          <p>Log in to Folio Cafe to review and respond to this offer.</p>
           <a href="${APP_URL}/dashboard/talent" class="cta">View &amp; Respond to Offer &rarr;</a>
         </div>
         ${FOOTER}`,
@@ -174,7 +179,7 @@ export async function sendHiredEmail(to: string, talentName: string, opts: {
   roleTitle: string
 }) {
   const { companyName, roleTitle } = opts
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `Congratulations! ${companyName} has hired you for ${roleTitle}`,
@@ -200,7 +205,7 @@ export async function sendTalentAcceptedEmail(to: string, employerName: string, 
   roleTitle: string
 }) {
   const { talentName, roleTitle } = opts
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${talentName} is interested in ${roleTitle}`,
@@ -225,7 +230,7 @@ export async function sendOfferAcceptedEmail(to: string, employerName: string, o
   roleTitle: string
 }) {
   const { talentName, roleTitle } = opts
-  return resend.emails.send({
+  return getResend().emails.send({
     from: FROM,
     to,
     subject: `${talentName} accepted your offer for ${roleTitle}`,

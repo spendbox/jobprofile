@@ -506,7 +506,7 @@ export default function VerifyPage() {
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-500 leading-relaxed">
-            Stored securely. Only accessible to TalentDeck admins for verification. Never shared with employers.
+            Stored securely. Only accessible to Folio Cafe admins for verification. Never shared with employers.
           </div>
 
           {docError && (

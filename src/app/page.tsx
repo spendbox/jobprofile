@@ -63,7 +63,7 @@ export default function LandingPage() {
       {/* Role pills */}
       <section className="bg-slate-50 px-4 py-8 overflow-hidden">
         <p className="text-center text-xs uppercase tracking-widest text-slate-400 mb-4">
-          Roles on TalentDeck
+          Roles on Folio Cafe
         </p>
         <div className="flex flex-wrap justify-center gap-2 max-w-2xl mx-auto">
           {roles.map((role) => (
@@ -112,10 +112,12 @@ export default function LandingPage() {
 
       {/* Footer */}
       <footer className="px-4 py-8 text-center text-sm text-slate-400 border-t border-slate-100">
-        <p>© 2026 TalentDeck. Built for the future of work.</p>
+        <p>© 2026 Folio Cafe. Built for the future of work.</p>
         <div className="flex items-center justify-center gap-4 mt-2">
           <Link href="/search" className="hover:text-slate-600 transition-colors">Browse Talent</Link>
           <Link href="/auth/signup" className="hover:text-slate-600 transition-colors">Join Free</Link>
+          <Link href="/terms" className="hover:text-slate-600 transition-colors">Terms</Link>
+          <Link href="/privacy" className="hover:text-slate-600 transition-colors">Privacy</Link>
         </div>
       </footer>
     </div>

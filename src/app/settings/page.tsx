@@ -390,7 +390,7 @@ export default function SettingsPage() {
             <p className="text-xs text-slate-500 mt-0.5">Contact support to permanently delete your account and all data.</p>
           </div>
           <a
-            href="mailto:support@talentdeck.com"
+            href="mailto:notifications@folio.cafe"
             className="text-xs text-red-500 hover:text-red-700 font-semibold flex-shrink-0"
           >
             Contact Support
