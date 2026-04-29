@@ -88,6 +88,36 @@ function RequestModal({
 
         {/* Scrollable body */}
         <div className="overflow-y-auto overflow-x-hidden flex-1 px-5 py-4 space-y-4">
+          {/* Employer company details */}
+          {(employer?.company_description || employer?.company_website || employer?.company_contact_email || employer?.company_hq_country) && (
+            <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 space-y-2">
+              <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">About the company</p>
+              {employer.company_description && (
+                <p className="text-sm text-slate-700 leading-relaxed break-words">{employer.company_description}</p>
+              )}
+              <div className="flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                {employer.company_hq_country && (
+                  <span className="text-xs text-slate-500">
+                    {employer.company_hq_state ? `${employer.company_hq_state}, ` : ''}{employer.company_hq_country}
+                  </span>
+                )}
+                {employer.company_timezone && (
+                  <span className="text-xs text-slate-500">{employer.company_timezone}</span>
+                )}
+                {employer.company_website && (
+                  <a href={employer.company_website} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-500 hover:underline break-all">
+                    {employer.company_website.replace(/^https?:\/\//, '')}
+                  </a>
+                )}
+                {employer.company_contact_email && (
+                  <a href={`mailto:${employer.company_contact_email}`} className="text-xs text-indigo-500 hover:underline">
+                    {employer.company_contact_email}
+                  </a>
+                )}
+              </div>
+            </div>
+          )}
+
           {request.message && (
             <div className="bg-slate-50 border border-slate-100 rounded-xl px-4 py-3">
               <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">Message from employer</p>

@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { UncontactedRow, ContactedRow } from '@/components/employer/PipelineRows'
 import type { TalentFind, TalentFindCandidate, InterviewRequest, RequestStage } from '@/types'
 import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
+import { timeAgo } from '@/lib/utils'
 
 type ViewFilter = 'matches' | RequestStage | 'notes' | 'responses'
 
@@ -114,6 +115,11 @@ export default function PipelinePage() {
     setTfc((prev) => prev.map((c) => c.profile_id === profileId ? { ...c, ...patch } : c))
   }, [])
 
+  // ── View flags (must be defined before useMemo that uses them) ─────────────
+  const isMatchesView = activeFilter === 'matches'
+  const isNotesView = activeFilter === 'notes'
+  const isResponsesView = activeFilter === 'responses'
+
   // ── Filtered lists ──────────────────────────────────────────────────────────
   const filteredMatches = useMemo(() => {
     let list = tfc.filter((c) => !c.contacted)
@@ -183,6 +189,19 @@ export default function PipelinePage() {
     await supabase.from('interview_requests').update({ stage: 'rejected', archived: false }).eq('id', requestId)
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, stage: 'rejected' as RequestStage } : r))
     setExpandedProfileId(null)
+  }
+
+  const handlePublish = async () => {
+    const res = await fetch(`/api/talent-finds/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setFind(updated)
+      await loadData()
+    }
   }
 
   const handleDelete = async () => {
@@ -263,9 +282,6 @@ export default function PipelinePage() {
     )
   }
 
-  const isMatchesView = activeFilter === 'matches'
-  const isNotesView = activeFilter === 'notes'
-  const isResponsesView = activeFilter === 'responses'
   const isSpecialView = isMatchesView || isNotesView || isResponsesView
   const listItems = isMatchesView ? filteredMatches : filteredRequests
   const listTitle = activeFilter === 'matches' ? 'Matches'
@@ -297,7 +313,19 @@ export default function PipelinePage() {
           <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded">
             {WORK_ARRANGEMENT_LABELS[find.work_arrangement]}
           </span>
+          {find.status === 'draft' && (
+            <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded">Draft</span>
+          )}
         </div>
+        <p className="text-[10px] text-slate-400 mt-1.5">Created {timeAgo(find.created_at)}</p>
+        {find.status === 'draft' && (
+          <button
+            onClick={handlePublish}
+            className="mt-2 w-full text-[10px] font-bold py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          >
+            Publish pipeline →
+          </button>
+        )}
       </div>
 
       {/* Nav */}

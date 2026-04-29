@@ -2,8 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import path from 'path'
-import { pathToFileURL } from 'url'
 
 const SYSTEM_PROMPT = `You are a CV/resume parser. Extract structured information and return ONLY valid JSON with this exact shape:
 {
@@ -21,19 +19,11 @@ Rules:
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
 
-// pdfjs-dist v5 validates workerPort with `instanceof Worker`, which fails in Node.js
-// (no global Worker). Instead, point workerSrc at the worker file so pdfjs falls
-// through to its built-in fake-worker (in-process) mode automatically.
-let pdfjsInitialised = false
-
+// Setting workerSrc to '' forces pdfjs into fake-worker (in-process) mode,
+// which works in Node.js/serverless where no Worker global exists.
 async function extractPdfText(buffer: Buffer): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-
-  if (!pdfjsInitialised) {
-    const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
-    pdfjsInitialised = true
-  }
+  pdfjsLib.GlobalWorkerOptions.workerSrc = ''
 
   const doc = await pdfjsLib.getDocument({
     data: new Uint8Array(buffer),

@@ -11,6 +11,7 @@ import { Avatar } from '@/components/ui/Avatar'
 import type { TalentFind } from '@/types'
 import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS, TIMEZONES } from '@/types'
 import { COUNTRIES } from '@/lib/countries'
+import { timeAgo } from '@/lib/utils'
 
 interface FindStats {
   discovered: number
@@ -70,8 +71,8 @@ function CompanySetupModal({ onComplete }: { onComplete: () => void }) {
   }
 
   const handleSave = async () => {
-    if (!companyContactEmail.trim() || !companyDescription.trim() || !companyHqCountry) {
-      setError('Contact email, description, and HQ country are required.')
+    if (!companyContactEmail.trim() || !companyDescription.trim() || !companyHqCountry || !companyHqState.trim()) {
+      setError('Contact email, description, HQ country, and HQ state/region are required.')
       return
     }
     if (!userProfile) return
@@ -163,7 +164,9 @@ function CompanySetupModal({ onComplete }: { onComplete: () => void }) {
               </select>
             </div>
             <div>
-              <label className="section-label mb-1.5 block">HQ State / Region</label>
+              <label className="section-label mb-1.5 block">
+                HQ State / Region <span className="text-red-400">*</span>
+              </label>
               <input type="text" className="input-base" value={companyHqState} onChange={(e) => setCompanyHqState(e.target.value)} placeholder="e.g. California" />
             </div>
           </div>
@@ -457,6 +460,7 @@ export default function EmployerDashboard() {
                       }`}>
                         {find.status === 'active' ? 'Active' : 'Archived'}
                       </span>
+                      <span className="text-xs text-slate-400">Created {timeAgo(find.created_at)}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mb-4">

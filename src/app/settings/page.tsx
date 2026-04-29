@@ -127,15 +127,15 @@ export default function SettingsPage() {
 
   const handleSaveCompany = async () => {
     if (!userProfile) return
-    if (!companyContactEmail.trim() || !companyDescription.trim() || !companyHqCountry) {
-      setCompanyError('Contact email, description, and HQ country are required.')
+    if (!companyContactEmail.trim() || !companyDescription.trim() || !companyHqCountry || !companyHqState.trim()) {
+      setCompanyError('Contact email, description, HQ country, and HQ state/region are required.')
       return
     }
     setSavingCompany(true)
     setCompanyError('')
     setCompanySuccess(false)
 
-    const isComplete = !!(companyContactEmail.trim() && companyDescription.trim() && companyHqCountry)
+    const isComplete = !!(companyContactEmail.trim() && companyDescription.trim() && companyHqCountry && companyHqState.trim())
 
     const { error: err } = await supabase
       .from('user_profiles')
@@ -331,7 +331,9 @@ export default function SettingsPage() {
               </select>
             </div>
             <div>
-              <label className="section-label mb-1.5 block">HQ State / Region</label>
+              <label className="section-label mb-1.5 block">
+                HQ State / Region <span className="text-red-400">*</span>
+              </label>
               <input
                 type="text"
                 className="input-base"
