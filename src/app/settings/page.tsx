@@ -8,6 +8,8 @@ import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
+import { COUNTRIES } from '@/lib/countries'
+import { TIMEZONES } from '@/types'
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -23,12 +25,29 @@ export default function SettingsPage() {
   const [success, setSuccess] = useState(false)
   const [error, setError] = useState('')
 
+  // Company profile fields
+  const [companyWebsite, setCompanyWebsite] = useState('')
+  const [companyContactEmail, setCompanyContactEmail] = useState('')
+  const [companyDescription, setCompanyDescription] = useState('')
+  const [companyHqCountry, setCompanyHqCountry] = useState('')
+  const [companyHqState, setCompanyHqState] = useState('')
+  const [companyTimezone, setCompanyTimezone] = useState('')
+  const [savingCompany, setSavingCompany] = useState(false)
+  const [companySuccess, setCompanySuccess] = useState(false)
+  const [companyError, setCompanyError] = useState('')
+
   useEffect(() => {
     if (loadingAuth) return
     if (!userProfile) { router.push('/auth/login'); return }
     setFullName(userProfile.full_name)
     setCompanyName(userProfile.company_name ?? '')
     setAvatarUrl(userProfile.avatar_url ?? '')
+    setCompanyWebsite(userProfile.company_website ?? '')
+    setCompanyContactEmail(userProfile.company_contact_email ?? '')
+    setCompanyDescription(userProfile.company_description ?? '')
+    setCompanyHqCountry(userProfile.company_hq_country ?? '')
+    setCompanyHqState(userProfile.company_hq_state ?? '')
+    setCompanyTimezone(userProfile.company_timezone ?? '')
   }, [userProfile, loadingAuth, router])
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,6 +125,41 @@ export default function SettingsPage() {
     setSaving(false)
   }
 
+  const handleSaveCompany = async () => {
+    if (!userProfile) return
+    if (!companyContactEmail.trim() || !companyDescription.trim() || !companyHqCountry) {
+      setCompanyError('Contact email, description, and HQ country are required.')
+      return
+    }
+    setSavingCompany(true)
+    setCompanyError('')
+    setCompanySuccess(false)
+
+    const isComplete = !!(companyContactEmail.trim() && companyDescription.trim() && companyHqCountry)
+
+    const { error: err } = await supabase
+      .from('user_profiles')
+      .update({
+        company_website: companyWebsite.trim() || null,
+        company_contact_email: companyContactEmail.trim(),
+        company_description: companyDescription.trim(),
+        company_hq_country: companyHqCountry || null,
+        company_hq_state: companyHqState.trim() || null,
+        company_timezone: companyTimezone || null,
+        company_profile_complete: isComplete,
+      })
+      .eq('id', userProfile.id)
+
+    if (err) {
+      setCompanyError(err.message)
+    } else {
+      await refreshProfile()
+      setCompanySuccess(true)
+      setTimeout(() => setCompanySuccess(false), 3000)
+    }
+    setSavingCompany(false)
+  }
+
   if (loadingAuth) {
     return (
       <div className="page-container flex items-center justify-center min-h-64">
@@ -160,7 +214,7 @@ export default function SettingsPage() {
       </div>
 
       {/* Fields */}
-      <div className="card p-6 space-y-5">
+      <div className="card p-6 space-y-5 mb-4">
         <div>
           <label className="section-label mb-1.5 block">Full Name</label>
           <input
@@ -212,6 +266,118 @@ export default function SettingsPage() {
           {saving ? 'Saving…' : 'Save Changes'}
         </button>
       </div>
+
+      {/* Company Profile section — employers only */}
+      {userProfile?.user_role === 'employer' && (
+        <div className="card p-6 space-y-5 mb-4">
+          <div>
+            <p className="section-label mb-1">Company Profile</p>
+            <p className="text-xs text-slate-400">Visible to talent when they receive your interview requests.</p>
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">Company Website</label>
+            <input
+              type="url"
+              className="input-base"
+              value={companyWebsite}
+              onChange={(e) => setCompanyWebsite(e.target.value)}
+              placeholder="https://yourcompany.com"
+            />
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">
+              Contact Email <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="email"
+              className="input-base"
+              value={companyContactEmail}
+              onChange={(e) => setCompanyContactEmail(e.target.value)}
+              placeholder="hiring@yourcompany.com"
+            />
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">
+              Company Description <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              className="input-base resize-none"
+              rows={3}
+              maxLength={500}
+              value={companyDescription}
+              onChange={(e) => setCompanyDescription(e.target.value)}
+              placeholder="Brief description of your company, culture, and mission…"
+            />
+            <p className="text-xs text-slate-400 mt-1 text-right">{companyDescription.length}/500</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="section-label mb-1.5 block">
+                HQ Country <span className="text-red-400">*</span>
+              </label>
+              <select
+                className="input-base"
+                value={companyHqCountry}
+                onChange={(e) => setCompanyHqCountry(e.target.value)}
+              >
+                <option value="">Select country</option>
+                {COUNTRIES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="section-label mb-1.5 block">HQ State / Region</label>
+              <input
+                type="text"
+                className="input-base"
+                value={companyHqState}
+                onChange={(e) => setCompanyHqState(e.target.value)}
+                placeholder="e.g. California"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">Timezone</label>
+            <select
+              className="input-base"
+              value={companyTimezone}
+              onChange={(e) => setCompanyTimezone(e.target.value)}
+            >
+              <option value="">Select timezone</option>
+              {TIMEZONES.map((tz) => (
+                <option key={tz} value={tz}>{tz}</option>
+              ))}
+            </select>
+          </div>
+
+          {companyError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{companyError}</div>
+          )}
+
+          {companySuccess && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-xl px-4 py-3 flex items-center gap-2">
+              <svg className="w-4 h-4 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              </svg>
+              Company profile saved.
+            </div>
+          )}
+
+          <button
+            onClick={handleSaveCompany}
+            disabled={savingCompany}
+            className="btn-primary w-full"
+          >
+            {savingCompany ? 'Saving…' : 'Save Company Profile'}
+          </button>
+        </div>
+      )}
 
       {/* Danger zone */}
       <div className="card p-6 mt-4 border-red-100">

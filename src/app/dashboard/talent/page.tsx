@@ -142,7 +142,13 @@ function RequestModal({
           )}
 
           {/* Stage progress (view-only) */}
-          {isViewOnly && stageIdx >= 0 && (
+          {isViewOnly && request.stage === 'rejected' && (
+            <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3">
+              <p className="text-sm font-semibold text-red-600">Application not selected</p>
+              <p className="text-xs text-red-400 mt-0.5">This employer has chosen not to move your application forward.</p>
+            </div>
+          )}
+          {isViewOnly && request.stage !== 'rejected' && stageIdx >= 0 && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your stage</p>
               <div className="flex items-center gap-1 mb-1">
@@ -395,14 +401,14 @@ export default function TalentDashboard() {
       )}
 
       {/* ── Active Pipeline ── */}
-      {activeRequests.length > 0 && (
+      {activeRequests.filter((r) => r.stage !== 'rejected').length > 0 && (
         <div className="mb-10">
           <div className="mb-4">
             <p className="section-label mb-0.5">Your Pipeline</p>
             <h2 className="text-lg font-bold text-slate-900">Active Opportunities</h2>
           </div>
           <div className="space-y-3">
-            {activeRequests.map((req) => {
+            {activeRequests.filter((r) => r.stage !== 'rejected').map((req) => {
               const find = req.talent_find as TalentFind | undefined
               const employer = req.employer as unknown as UserProfile | undefined
               const companyName = employer?.company_name ?? employer?.full_name ?? 'Employer'
@@ -446,6 +452,41 @@ export default function TalentDashboard() {
                     </div>
                   </div>
                 </button>
+              )
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Rejected Applications ── */}
+      {activeRequests.filter((r) => r.stage === 'rejected').length > 0 && (
+        <div className="mb-10">
+          <div className="mb-4">
+            <p className="section-label mb-0.5 text-red-400">Closed</p>
+            <h2 className="text-lg font-bold text-slate-900">Not Selected</h2>
+          </div>
+          <div className="space-y-3">
+            {activeRequests.filter((r) => r.stage === 'rejected').map((req) => {
+              const find = req.talent_find as TalentFind | undefined
+              const employer = req.employer as unknown as UserProfile | undefined
+              const companyName = employer?.company_name ?? employer?.full_name ?? 'Employer'
+              const roleTitle = find?.role_title ?? 'Role'
+              return (
+                <div key={req.id} className="card p-4 border-red-100 bg-red-50/30 opacity-75">
+                  <div className="flex items-start gap-3">
+                    <Avatar name={companyName} size="sm" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="font-bold text-slate-700 text-sm leading-snug truncate">{companyName}</p>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 bg-red-100 text-red-500">
+                          Not Selected
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 truncate mt-0.5">{roleTitle}</p>
+                      <p className="text-xs text-red-400 mt-2">This employer chose not to move your application forward.</p>
+                    </div>
+                  </div>
+                </div>
               )
             })}
           </div>
