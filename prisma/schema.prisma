@@ -11,12 +11,21 @@ datasource db {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model UserProfile {
-  id           String   @id @db.Uuid
-  full_name    String
-  user_role    String
-  company_name String?
-  avatar_url   String?
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  id                       String   @id @db.Uuid
+  full_name                String
+  user_role                String
+  company_name             String?
+  avatar_url               String?
+  is_verified              Boolean? @default(false)
+  verified_at              DateTime? @db.Timestamptz(6)
+  company_website          String?
+  company_contact_email    String?
+  company_description      String?
+  company_hq_country       String?
+  company_hq_state         String?
+  company_timezone         String?
+  company_profile_complete Boolean? @default(false)
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
 
   profiles      Profile[]
   sent_requests InterviewRequest[] @relation("EmployerRequests")

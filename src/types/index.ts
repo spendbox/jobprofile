@@ -1,11 +1,11 @@
 export type UserRole = 'talent' | 'employer'
 export type AvailabilityStatus = 'available' | 'open' | 'not_looking'
 export type RequestStatus = 'pending' | 'accepted' | 'declined'
-export type RequestStage = 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
+export type RequestStage = 'discovered' | 'interested' | 'interview' | 'offer' | 'hired' | 'rejected'
 export type PortfolioItemType = 'image' | 'document' | 'link' | 'video'
 export type EmploymentType = 'fulltime' | 'parttime' | 'contract' | 'volunteer' | 'internship'
 export type WorkArrangement = 'remote' | 'hybrid' | 'onsite'
-export type TalentFindStatus = 'active' | 'archived'
+export type TalentFindStatus = 'active' | 'archived' | 'draft'
 
 export interface UserProfile {
   id: string
@@ -15,6 +15,13 @@ export interface UserProfile {
   avatar_url?: string
   is_verified?: boolean
   verified_at?: string
+  company_website?: string
+  company_contact_email?: string
+  company_description?: string
+  company_hq_country?: string
+  company_hq_state?: string
+  company_timezone?: string
+  company_profile_complete?: boolean
   created_at: string
 }
 
@@ -172,6 +179,7 @@ export const STAGE_LABELS: Record<RequestStage, string> = {
   interview: 'Interview',
   offer: 'Offer',
   hired: 'Hired',
+  rejected: 'Rejected',
 }
 
 export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
