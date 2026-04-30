@@ -6,7 +6,7 @@ function getResend() {
   return _resend
 }
 
-const FROM = process.env.EMAIL_FROM ?? 'Folio Cafe <notifications@folio.cafe>'
+const FROM = process.env.EMAIL_FROM ?? 'Folio <notifications@folio.cafe>'
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? 'https://folio.cafe'
 
 // ─── Shared styles ────────────────────────────────────────────────────────────
@@ -39,7 +39,7 @@ const BASE = `
 
 const FOOTER = `
   <div class="footer">
-    <p>Folio Cafe &mdash; The talent discovery platform<br>
+    <p>Folio &mdash; The talent discovery platform<br>
     You received this email because of activity on your account.<br>
     <a href="${APP_URL}" style="color:#4f46e5;text-decoration:none">folio.cafe</a></p>
   </div></div></body></html>`
@@ -49,12 +49,12 @@ export async function sendVerificationEmail(to: string, name: string, pin: strin
   return getResend().emails.send({
     from: FROM,
     to,
-    subject: `${pin} is your Folio Cafe verification code`,
+    subject: `${pin} is your Folio verification code`,
     html: `${BASE}
       <div class="wrap">
         <div class="header">
           <h1>Verify your email</h1>
-          <p>Welcome to Folio Cafe, ${name}!</p>
+          <p>Welcome to Folio, ${name}!</p>
         </div>
         <div class="body">
           <p>Use the code below to verify your email address. It expires in <strong>15 minutes</strong>.</p>
@@ -62,7 +62,7 @@ export async function sendVerificationEmail(to: string, name: string, pin: strin
             <span>${pin}</span>
             <small>Do not share this code with anyone.</small>
           </div>
-          <p style="font-size:13px;color:#94a3b8">If you didn't create a Folio Cafe account, you can safely ignore this email.</p>
+          <p style="font-size:13px;color:#94a3b8">If you didn't create a Folio account, you can safely ignore this email.</p>
         </div>
         ${FOOTER}`,
   })
@@ -101,7 +101,7 @@ export async function sendInterviewRequestEmail(to: string, talentName: string, 
             </div>
           </div>
           ${message ? `<div class="detail-box"><div class="label">Message from ${companyName}</div><div class="value" style="font-weight:400;font-style:italic">&ldquo;${message}&rdquo;</div></div>` : ''}
-          <p>Log in to Folio Cafe to review the full job details and respond.</p>
+          <p>Log in to Folio to review the full job details and respond.</p>
           <a href="${APP_URL}/dashboard/talent" class="cta">View Request &rarr;</a>
         </div>
         ${FOOTER}`,
@@ -166,7 +166,7 @@ export async function sendOfferEmail(to: string, talentName: string, opts: {
             <div class="label">Offer details</div>
             <div class="value" style="font-weight:400;white-space:pre-line">${offerDetails}</div>
           </div>
-          <p>Log in to Folio Cafe to review and respond to this offer.</p>
+          <p>Log in to Folio to review and respond to this offer.</p>
           <a href="${APP_URL}/dashboard/talent" class="cta">View &amp; Respond to Offer &rarr;</a>
         </div>
         ${FOOTER}`,
@@ -194,6 +194,49 @@ export async function sendHiredEmail(to: string, talentName: string, opts: {
           <p>We&apos;re thrilled to let you know that <strong>${companyName}</strong> has officially hired you for the role of <strong>${roleTitle}</strong>.</p>
           <p>Best of luck in your new role — we&apos;re rooting for you!</p>
           <a href="${APP_URL}/dashboard/talent" class="cta">View Your Pipeline &rarr;</a>
+        </div>
+        ${FOOTER}`,
+  })
+}
+
+// ─── Account verified (to talent) ────────────────────────────────────────────
+export async function sendVerificationApprovedEmail(to: string, name: string) {
+  return getResend().emails.send({
+    from: FROM,
+    to,
+    subject: 'Your Folio account has been verified!',
+    html: `${BASE}
+      <div class="wrap">
+        <div class="header" style="background:linear-gradient(135deg,#059669 0%,#047857 100%)">
+          <h1>You're verified!</h1>
+          <p>Your account has been approved by the Folio team.</p>
+        </div>
+        <div class="body">
+          <p>Hi ${name},</p>
+          <p>Great news — your Folio account has been <strong>verified</strong>. You now carry the verified badge on your profile, which makes you <strong>5x more likely to receive interview requests</strong> from top employers.</p>
+          <div class="detail-box">
+            <div class="label">What this means for you</div>
+            <div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:14px;color:#1e293b">
+                <span style="color:#059669;font-weight:700;flex-shrink:0">✓</span>
+                Verified badge displayed on your public profile
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:14px;color:#1e293b">
+                <span style="color:#059669;font-weight:700;flex-shrink:0">✓</span>
+                Priority ranking in employer search results
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:14px;color:#1e293b">
+                <span style="color:#059669;font-weight:700;flex-shrink:0">✓</span>
+                Employers trust verified talent — 5x higher hire rate
+              </div>
+              <div style="display:flex;align-items:flex-start;gap:8px;font-size:14px;color:#1e293b">
+                <span style="color:#059669;font-weight:700;flex-shrink:0">✓</span>
+                You'll be emailed directly when an employer sends an interview request
+              </div>
+            </div>
+          </div>
+          <p>Make sure your profile is complete and up to date to maximise your chances.</p>
+          <a href="${APP_URL}/dashboard/talent" class="cta">Go to Dashboard &rarr;</a>
         </div>
         ${FOOTER}`,
   })

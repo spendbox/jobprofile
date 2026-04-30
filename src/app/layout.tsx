@@ -5,7 +5,7 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
-  title: 'Folio Cafe — Employers discover you',
+  title: 'Folio — Employers discover you',
   description:
     'Build your profile, set your availability, and let employers come to you with interview requests.',
 }

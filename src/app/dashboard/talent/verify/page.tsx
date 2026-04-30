@@ -5,9 +5,18 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Script from 'next/script'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { timeAgo } from '@/lib/utils'
+
+declare global {
+  interface Window {
+    PaystackPop: {
+      setup: (opts: Record<string, unknown>) => { openIframe: () => void }
+    }
+  }
+}
 
 // ─── Word list for liveness phrase ────────────────────────────────────────────
 const WORDS = [
@@ -44,6 +53,9 @@ export default function VerifyPage() {
   const [alreadyVerified, setAlreadyVerified] = useState(false)
   const [alreadyPending, setAlreadyPending] = useState(false)
   const [pendingAt, setPendingAt] = useState<string | null>(null)
+  const [paymentDone, setPaymentDone] = useState(false)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
 
   // Step 1
   const [legalName, setLegalName] = useState('')
@@ -316,15 +328,139 @@ export default function VerifyPage() {
     )
   }
 
+  const handlePayment = async () => {
+    if (!userProfile) { setPaymentError('Not signed in. Please refresh.'); return }
+    if (!window.PaystackPop) { setPaymentError('Payment system not loaded. Please refresh.'); return }
+    setPaymentLoading(true)
+    setPaymentError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    const email = user?.email
+    if (!email) { setPaymentError('Email not found. Please refresh and try again.'); setPaymentLoading(false); return }
+    const ref = `folio-verify-${userProfile.id}-${Date.now()}`
+    const handler = window.PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '',
+      email,
+      amount: 200, // $2 USD in cents
+      currency: 'USD',
+      ref,
+      metadata: { user_id: userProfile.id, type: 'verification' },
+      callback: async (response: { reference: string }) => {
+        try {
+          const res = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: response.reference }),
+          })
+          if (res.ok) {
+            setPaymentDone(true)
+          } else {
+            setPaymentError('Payment could not be verified. Please contact support.')
+          }
+        } catch {
+          setPaymentError('Network error verifying payment. Please contact support.')
+        } finally {
+          setPaymentLoading(false)
+        }
+      },
+      onClose: () => { setPaymentLoading(false) },
+    })
+    handler.openIframe()
+  }
+
   const stepLabels = ['Legal Name', 'Liveness', 'Document', 'Confirm']
 
   return (
+    <>
+    <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
     <div className="page-container max-w-lg">
       <Link href="/dashboard/talent" className="text-xs text-slate-500 hover:text-slate-700 flex items-center gap-1 mb-6">
         <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" /></svg>
         Back to Dashboard
       </Link>
 
+      {/* ── Payment gate ─────────────────────────────────────────────────── */}
+      {!paymentDone && (
+        <>
+          <div className="mb-6">
+            <p className="section-label mb-1">Identity</p>
+            <h1 className="text-2xl font-black text-slate-900">Get Verified</h1>
+            <p className="text-sm text-slate-500 mt-1">A one-time fee unlocks your verified badge and boosts your visibility.</p>
+          </div>
+
+          <div className="card p-6 mb-4">
+            <div className="flex items-start gap-4 mb-6">
+              <div className="w-12 h-12 bg-slate-900 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-900 text-lg">Verified accounts get 5x more interviews</h2>
+                <p className="text-sm text-slate-500 mt-1">Employers trust verified talent. Get a badge that sets you apart.</p>
+              </div>
+            </div>
+
+            <div className="space-y-3 mb-6">
+              {[
+                'Verified badge on your public profile',
+                'Priority ranking in employer search results',
+                'Email notifications for every interview request',
+                'No weekly fees — one-time verification only',
+                'Create unlimited job profiles to match more roles',
+              ].map((benefit) => (
+                <div key={benefit} className="flex items-center gap-3">
+                  <div className="w-5 h-5 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-slate-700">{benefit}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm font-semibold text-slate-700">One-time verification fee</span>
+                <span className="text-2xl font-black text-slate-900">$2 <span className="text-sm font-normal text-slate-400">USD</span></span>
+              </div>
+
+              {paymentError && (
+                <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-3">
+                  {paymentError}
+                </div>
+              )}
+
+              <button
+                onClick={handlePayment}
+                disabled={paymentLoading}
+                className="btn-primary w-full py-3 flex items-center justify-center gap-2"
+              >
+                {paymentLoading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Processing…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                    </svg>
+                    Pay $2 &amp; Start Verification
+                  </>
+                )}
+              </button>
+              <p className="text-xs text-slate-400 text-center mt-2">Secure payment powered by Paystack. One-time charge.</p>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* ── Verification steps (shown after payment) ─────────────────────── */}
+      {paymentDone && <>
       <div className="mb-6">
         <p className="section-label mb-1">Identity</p>
         <h1 className="text-2xl font-black text-slate-900">Account Verification</h1>
@@ -506,7 +642,7 @@ export default function VerifyPage() {
           </div>
 
           <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-500 leading-relaxed">
-            Stored securely. Only accessible to Folio Cafe admins for verification. Never shared with employers.
+            Stored securely. Only accessible to Folio admins for verification. Never shared with employers.
           </div>
 
           {docError && (
@@ -635,6 +771,8 @@ export default function VerifyPage() {
           </div>
         </div>
       )}
+      </>}
     </div>
+    </>
   )
 }

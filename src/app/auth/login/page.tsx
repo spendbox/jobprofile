@@ -115,7 +115,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
-          <p className="text-slate-500 mt-1 text-sm">Sign in to your Folio Cafe account</p>
+          <p className="text-slate-500 mt-1 text-sm">Sign in to your Folio account</p>
         </div>
 
         <div className="card p-6">

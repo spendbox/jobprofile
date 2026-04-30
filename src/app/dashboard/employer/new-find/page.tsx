@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Script from 'next/script'
 import { useAuth } from '@/contexts/AuthContext'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { createClient } from '@/lib/supabase/client'
@@ -58,6 +59,9 @@ export default function NewTalentFindPage() {
   const [submitting, setSubmitting] = useState(false)
   const [savingDraft, setSavingDraft] = useState(false)
   const [error, setError] = useState('')
+  const [showPaymentGate, setShowPaymentGate] = useState(false)
+  const [paymentLoading, setPaymentLoading] = useState(false)
+  const [paymentError, setPaymentError] = useState('')
 
   useEffect(() => {
     if (!loadingAuth && !userProfile) router.push('/auth/login')
@@ -171,10 +175,7 @@ export default function NewTalentFindPage() {
     custom_questions: questions,
   })
 
-  const handleSubmit = async () => {
-    const err = validateStep()
-    if (err) { setError(err); return }
-    setError('')
+  const doSubmit = async () => {
     setSubmitting(true)
     try {
       const res = await fetch('/api/talent-finds', {
@@ -189,6 +190,55 @@ export default function NewTalentFindPage() {
       setError('Network error. Please try again.')
       setSubmitting(false)
     }
+  }
+
+  const handleSubmit = async () => {
+    const err = validateStep()
+    if (err) { setError(err); return }
+    setError('')
+    setShowPaymentGate(true)
+  }
+
+  const handlePayAndCreate = async () => {
+    if (!userProfile) { setPaymentError('Not signed in. Please refresh.'); return }
+    if (!(window as Window & { PaystackPop?: unknown }).PaystackPop) { setPaymentError('Payment system not loaded. Please refresh.'); return }
+    setPaymentLoading(true)
+    setPaymentError('')
+    const supabase = createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    const email = user?.email
+    if (!email) { setPaymentError('Email not found. Please refresh.'); setPaymentLoading(false); return }
+    const ref = `folio-pipeline-${userProfile.id}-${Date.now()}`
+    const paystackWindow = window as Window & { PaystackPop: { setup: (opts: Record<string, unknown>) => { openIframe: () => void } } }
+    const handler = paystackWindow.PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '',
+      email,
+      amount: 20000, // $200 USD in cents
+      currency: 'USD',
+      ref,
+      metadata: { user_id: userProfile.id, type: 'pipeline_creation' },
+      callback: async (response: { reference: string }) => {
+        try {
+          const res = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: response.reference }),
+          })
+          if (res.ok) {
+            setShowPaymentGate(false)
+            await doSubmit()
+          } else {
+            setPaymentError('Payment could not be verified. Please contact support.')
+          }
+        } catch {
+          setPaymentError('Network error verifying payment. Please contact support.')
+        } finally {
+          setPaymentLoading(false)
+        }
+      },
+      onClose: () => { setPaymentLoading(false) },
+    })
+    handler.openIframe()
   }
 
   const handleSaveDraft = async () => {
@@ -217,6 +267,70 @@ export default function NewTalentFindPage() {
   if (loadingAuth) return null
 
   return (
+    <>
+    <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
+
+    {/* ── Payment modal ──────────────────────────────────────────────────── */}
+    {showPaymentGate && (
+      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+          <div className="flex items-start gap-4 mb-5">
+            <div className="w-11 h-11 bg-slate-900 rounded-xl flex items-center justify-center flex-shrink-0">
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+            </div>
+            <div>
+              <h2 className="font-bold text-slate-900 text-lg">Create Pipeline</h2>
+              <p className="text-sm text-slate-500">One-time payment to publish your talent pipeline.</p>
+            </div>
+          </div>
+
+          <div className="bg-slate-50 rounded-xl p-4 mb-5 space-y-2">
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Role</span>
+              <span className="font-semibold text-slate-900">{roleTitle}</span>
+            </div>
+            <div className="flex justify-between text-sm">
+              <span className="text-slate-600">Pipeline creation fee</span>
+              <span className="font-black text-slate-900 text-lg">$200 USD</span>
+            </div>
+          </div>
+
+          <div className="space-y-2 mb-5 text-sm text-slate-600">
+            {['AI-matched candidates scored and ranked for your role', 'Access to verified African talent ready for global work', 'Manage your full pipeline from discovery to hire', 'Email candidates directly through the platform'].map((f) => (
+              <div key={f} className="flex items-start gap-2">
+                <svg className="w-4 h-4 text-emerald-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                </svg>
+                {f}
+              </div>
+            ))}
+          </div>
+
+          {paymentError && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3 mb-3">{paymentError}</div>
+          )}
+
+          <div className="flex gap-3">
+            <button onClick={() => { setShowPaymentGate(false); setPaymentError('') }} className="btn-secondary flex-1">Cancel</button>
+            <button onClick={handlePayAndCreate} disabled={paymentLoading} className="btn-primary flex-1 flex items-center justify-center gap-2">
+              {paymentLoading ? (
+                <>
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                  Processing…
+                </>
+              ) : 'Pay $200 & Create'}
+            </button>
+          </div>
+          <p className="text-xs text-slate-400 text-center mt-3">Secure payment via Paystack</p>
+        </div>
+      </div>
+    )}
+
     <div className="page-container max-w-xl">
       {/* Back link */}
       <Link
@@ -650,5 +764,6 @@ export default function NewTalentFindPage() {
         )}
       </div>
     </div>
+    </>
   )
 }
