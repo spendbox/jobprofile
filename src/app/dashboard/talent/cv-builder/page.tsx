@@ -8,7 +8,31 @@ import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
 import type { CVBuilderData } from '@/lib/cvDocxGenerator'
-import type { TalentProfile } from '@/types'
+import type { TalentProfile, CVData } from '@/types'
+
+// ─── Convert stored CVData → CVBuilderData ──────────────────────────────────
+function cvDataToBuilder(cv: CVData, profile: TalentProfile): CVBuilderData {
+  return {
+    summary: cv.summary,
+    experience: cv.experience?.map((e) => ({
+      title: e.title,
+      company: e.company,
+      location: '',
+      startDate: e.period?.split(/[-–]/, 2)[0]?.trim() ?? '',
+      endDate: e.period?.split(/[-–]/).pop()?.trim() ?? 'Present',
+      bullets: e.bullets ?? [],
+    })) ?? [],
+    education: cv.education?.map((e) => ({
+      degree: e.degree,
+      school: e.school,
+      location: '',
+      endDate: e.period?.split(/[-–]/).pop()?.trim() ?? '',
+    })) ?? [],
+    certifications: cv.certifications ?? [],
+    languages: cv.languages ?? [],
+    skills: profile.skills ?? [],
+  }
+}
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 interface ChatMessage {
@@ -109,19 +133,21 @@ export default function CVBuilderPage() {
   }, [userProfile, loadingAuth, router])
 
   // ── Build profile context for AI ────────────────────────────────────────
-  const buildProfileContext = useCallback(async (): Promise<string> => {
-    if (!userProfile) return ''
+  const buildProfileContext = useCallback(async (): Promise<{
+    context: string
+    existingCv: CVBuilderData | null
+  }> => {
+    if (!userProfile) return { context: '', existingCv: null }
     const parts: string[] = []
     if (userProfile.full_name) parts.push(`Name: ${userProfile.full_name}`)
 
-    // fetch their supabase email
     const { data: { user } } = await supabase.auth.getUser()
     if (user?.email) parts.push(`Email: ${user.email}`)
 
-    // fetch their most recent talent profile
+    // fetch most recent profile including cv_data
     const { data: profiles } = await supabase
       .from('profiles')
-      .select('role_title, skills, bio, years_experience, location, timezone')
+      .select('role_title, skills, bio, years_experience, timezone, cv_data')
       .eq('user_id', userProfile.id)
       .order('updated_at', { ascending: false })
       .limit(1)
@@ -131,7 +157,30 @@ export default function CVBuilderPage() {
     if (profile?.skills?.length) parts.push(`Skills on profile: ${profile.skills.join(', ')}`)
     if (profile?.bio) parts.push(`Bio: ${profile.bio}`)
     if (profile?.years_experience) parts.push(`Years of experience: ${profile.years_experience}`)
-    return parts.join('\n')
+
+    let existingCv: CVBuilderData | null = null
+
+    if (profile?.cv_data) {
+      const cd = profile.cv_data as CVData
+      const hasContent = (cd.experience?.length ?? 0) > 0 || (cd.education?.length ?? 0) > 0
+      if (hasContent) {
+        existingCv = cvDataToBuilder(cd, profile)
+        parts.push(`\n[PREVIOUS CV FOUND]`)
+        parts.push(`Experience entries: ${cd.experience?.length ?? 0}`)
+        if (cd.experience?.length) {
+          parts.push(`Most recent role: ${cd.experience[0].title} at ${cd.experience[0].company}`)
+        }
+        parts.push(`Education entries: ${cd.education?.length ?? 0}`)
+        if (cd.education?.length) {
+          parts.push(`Highest qualification: ${cd.education[0].degree} from ${cd.education[0].school}`)
+        }
+        if (cd.certifications?.length) parts.push(`Certifications: ${cd.certifications.join(', ')}`)
+        if (cd.languages?.length) parts.push(`Languages: ${cd.languages.join(', ')}`)
+        parts.push(`[END PREVIOUS CV]`)
+      }
+    }
+
+    return { context: parts.join('\n'), existingCv }
   }, [userProfile, supabase])
 
   // ── Initialize with first AI message ────────────────────────────────────
@@ -141,14 +190,22 @@ export default function CVBuilderPage() {
 
     const init = async () => {
       setThinking(true)
-      const profileContext = await buildProfileContext()
+      const { context: profileContext, existingCv } = await buildProfileContext()
+
+      // If we found a previous CV, pre-seed the state so the panel shows data immediately
+      const seedCvData = existingCv ?? {}
+      if (existingCv) setCvData(existingCv)
+
+      const openingMessage = existingCv
+        ? 'Hello, I want to create a CV. I have a previously uploaded CV.'
+        : 'Hello, I want to create a CV.'
 
       const res = await fetch('/api/cv/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: 'Hello, I want to create a CV.' }],
-          currentCvData: {},
+          messages: [{ role: 'user', content: openingMessage }],
+          currentCvData: seedCvData,
           profileContext,
         }),
       })
@@ -158,7 +215,7 @@ export default function CVBuilderPage() {
 
       if (data.reply) {
         setMessages([{ role: 'assistant', content: data.reply, id: crypto.randomUUID() }])
-        setCvData(data.cvData ?? {})
+        if (data.cvData && Object.keys(data.cvData).length > 0) setCvData(data.cvData)
         setCurrentSection(data.currentSection ?? 'targetRole')
         setCompletionPercent(data.completionPercent ?? 0)
         setIsComplete(data.isComplete ?? false)
@@ -186,7 +243,7 @@ export default function CVBuilderPage() {
     const apiMessages = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }))
 
     try {
-      const profileContext = await buildProfileContext()
+      const { context: profileContext } = await buildProfileContext()
       const res = await fetch('/api/cv/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
