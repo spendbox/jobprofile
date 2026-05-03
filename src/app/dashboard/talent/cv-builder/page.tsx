@@ -542,19 +542,19 @@ function ProgressPanel({
         <div className="border border-slate-100 rounded-xl p-3 space-y-2 bg-slate-50">
           <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Collected so far</p>
           {cvData.contactInfo?.name && (
-            <PreviewItem icon="👤" label={cvData.contactInfo.name} />
+            <PreviewItem icon="person" label={cvData.contactInfo.name} />
           )}
           {cvData.targetRole && (
-            <PreviewItem icon="🎯" label={cvData.targetRole} />
+            <PreviewItem icon="target" label={cvData.targetRole} />
           )}
           {cvData.experience?.length ? (
-            <PreviewItem icon="💼" label={`${cvData.experience.length} role${cvData.experience.length > 1 ? 's' : ''}`} />
+            <PreviewItem icon="briefcase" label={`${cvData.experience.length} role${cvData.experience.length > 1 ? 's' : ''}`} />
           ) : null}
           {cvData.education?.length ? (
-            <PreviewItem icon="🎓" label={cvData.education[0].degree} />
+            <PreviewItem icon="education" label={cvData.education[0].degree} />
           ) : null}
           {cvData.skills?.length ? (
-            <PreviewItem icon="⚡" label={`${cvData.skills.length} skills`} />
+            <PreviewItem icon="skills" label={`${cvData.skills.length} skills`} />
           ) : null}
         </div>
       )}
@@ -595,10 +595,40 @@ function ProgressPanel({
   )
 }
 
+const PREVIEW_ICONS: Record<string, React.ReactNode> = {
+  person: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+    </svg>
+  ),
+  target: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+  ),
+  briefcase: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+    </svg>
+  ),
+  education: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l9-5-9-5-9 5 9 5z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 14l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14z" />
+    </svg>
+  ),
+  skills: (
+    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
+    </svg>
+  ),
+}
+
 function PreviewItem({ icon, label }: { icon: string; label: string }) {
   return (
     <div className="flex items-center gap-2">
-      <span className="text-xs">{icon}</span>
+      <span className="text-slate-400 flex-shrink-0">{PREVIEW_ICONS[icon]}</span>
       <span className="text-xs text-slate-600 truncate">{label}</span>
     </div>
   )
