@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   experimental: {
-    // pdf-parse and mammoth must not be bundled — they use Node.js native APIs
-    serverComponentsExternalPackages: ['pdf-parse', 'mammoth'],
+    // These must not be bundled — they use Node.js native APIs or require file system access
+    serverComponentsExternalPackages: ['pdf-parse', 'mammoth', 'docx'],
   },
   images: {
     remotePatterns: [
