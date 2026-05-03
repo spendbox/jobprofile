@@ -87,6 +87,9 @@ export function Navbar() {
                         <Link href="/dashboard/talent/profiles" className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setMenuOpen(false)}>
                           Job Profiles
                         </Link>
+                        <Link href="/dashboard/talent/cv-builder" className="block px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors" onClick={() => setMenuOpen(false)}>
+                          AI CV Builder
+                        </Link>
                       </>
                     )}
 
