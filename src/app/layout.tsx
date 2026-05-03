@@ -5,7 +5,7 @@ import { BottomNav } from '@/components/layout/BottomNav'
 import { AuthProvider } from '@/contexts/AuthContext'
 
 export const metadata: Metadata = {
-  title: 'TalentDeck — Employers discover you',
+  title: 'Folio — Employers discover you',
   description:
     'Build your profile, set your availability, and let employers come to you with interview requests.',
 }
@@ -26,8 +26,8 @@ export default function RootLayout({
       <body>
         <AuthProvider>
           <Navbar />
-          <main className="min-h-screen">{children}</main>
           <BottomNav />
+          <main className="min-h-screen">{children}</main>
         </AuthProvider>
       </body>
     </html>

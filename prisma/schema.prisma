@@ -11,12 +11,22 @@ datasource db {
 // ─── Models ───────────────────────────────────────────────────────────────────
 
 model UserProfile {
-  id           String   @id @db.Uuid
-  full_name    String
-  user_role    String
-  company_name String?
-  avatar_url   String?
-  created_at   DateTime @default(now()) @db.Timestamptz(6)
+  id                       String   @id @db.Uuid
+  full_name                String
+  user_role                String
+  company_name             String?
+  avatar_url               String?
+  is_verified              Boolean? @default(false)
+  verified_at              DateTime? @db.Timestamptz(6)
+  company_website          String?
+  company_contact_email    String?
+  company_description      String?
+  company_hq_country       String?
+  company_hq_state         String?
+  company_timezone         String?
+  company_profile_complete Boolean? @default(false)
+  email_verified           Boolean  @default(false)
+  created_at               DateTime @default(now()) @db.Timestamptz(6)
 
   profiles      Profile[]
   sent_requests InterviewRequest[] @relation("EmployerRequests")
@@ -118,10 +128,15 @@ model InterviewRequest {
   archived         Boolean  @default(false)
   opening_id       String?  @db.Uuid
   talent_find_id   String?  @db.Uuid
-  star_rating      Int?
-  question_answers Json?
-  created_at       DateTime @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+  star_rating        Int?
+  question_answers   Json?
+  interview_method   String?
+  interview_link     String?
+  interview_notes    String?
+  offer_details      String?
+  offer_accepted     Boolean  @default(false)
+  created_at         DateTime @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime @default(now()) @db.Timestamptz(6)
 
   employer     UserProfile @relation("EmployerRequests", fields: [employer_id], references: [id], onDelete: Cascade)
   profile      Profile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)

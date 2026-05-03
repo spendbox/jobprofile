@@ -45,7 +45,7 @@ export default function AdminLoginPage() {
             </svg>
           </span>
           <div>
-            <p className="font-bold text-white leading-none">TalentDeck</p>
+            <p className="font-bold text-white leading-none">Folio</p>
             <p className="text-[11px] text-slate-400 leading-none mt-0.5">Admin Panel</p>
           </div>
         </div>

@@ -1,11 +1,11 @@
 export type UserRole = 'talent' | 'employer'
 export type AvailabilityStatus = 'available' | 'open' | 'not_looking'
 export type RequestStatus = 'pending' | 'accepted' | 'declined'
-export type RequestStage = 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
+export type RequestStage = 'discovered' | 'interested' | 'interview' | 'offer' | 'hired' | 'rejected'
 export type PortfolioItemType = 'image' | 'document' | 'link' | 'video'
 export type EmploymentType = 'fulltime' | 'parttime' | 'contract' | 'volunteer' | 'internship'
 export type WorkArrangement = 'remote' | 'hybrid' | 'onsite'
-export type TalentFindStatus = 'active' | 'archived'
+export type TalentFindStatus = 'active' | 'archived' | 'draft'
 
 export interface UserProfile {
   id: string
@@ -15,6 +15,14 @@ export interface UserProfile {
   avatar_url?: string
   is_verified?: boolean
   verified_at?: string
+  company_website?: string
+  company_contact_email?: string
+  company_description?: string
+  company_hq_country?: string
+  company_hq_state?: string
+  company_timezone?: string
+  company_profile_complete?: boolean
+  email_verified?: boolean
   created_at: string
 }
 
@@ -62,6 +70,9 @@ export interface TalentProfile {
   cv_data?: CVData
   cv_file_path?: string
   portfolio_item_ids: string[]
+  email_contact?: string
+  work_arrangement_preference?: string[]
+  willing_to_travel?: boolean
   profile_views: number
   times_shown: number
   availability_updated_at: string
@@ -130,6 +141,13 @@ export interface InterviewRequest {
   talent_find?: TalentFind
   star_rating?: number
   question_answers?: Record<string, string>
+  // Interview details (set when employer moves to 'interview' stage)
+  interview_method?: string
+  interview_link?: string
+  interview_notes?: string
+  // Offer details (set when employer moves to 'offer' stage)
+  offer_details?: string
+  offer_accepted?: boolean
   created_at: string
   updated_at: string
   profiles?: TalentProfile & { user_profiles?: UserProfile }
@@ -169,6 +187,7 @@ export const STAGE_LABELS: Record<RequestStage, string> = {
   interview: 'Interview',
   offer: 'Offer',
   hired: 'Hired',
+  rejected: 'Rejected',
 }
 
 export const EMPLOYMENT_TYPE_LABELS: Record<EmploymentType, string> = {
@@ -186,7 +205,7 @@ export const WORK_ARRANGEMENT_LABELS: Record<WorkArrangement, string> = {
 }
 
 export const TIMEZONES = [
-  'UTC',
+  'UTC+0',
   'UTC-12', 'UTC-11', 'UTC-10', 'UTC-9', 'UTC-8', 'UTC-7', 'UTC-6',
   'UTC-5', 'UTC-4', 'UTC-3', 'UTC-2', 'UTC-1',
   'UTC+1', 'UTC+2', 'UTC+3', 'UTC+4', 'UTC+5', 'UTC+5:30',

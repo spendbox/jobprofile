@@ -2,17 +2,34 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import type { UserRole } from '@/types'
 
-export default function SignupPage() {
+const FREE_EMAIL_DOMAINS = [
+  'gmail.com','yahoo.com','hotmail.com','outlook.com','icloud.com','protonmail.com',
+  'aol.com','mail.com','zoho.com','yandex.com','gmx.com','live.com','msn.com',
+  'me.com','mac.com','googlemail.com','yahoo.co.uk','yahoo.co.in','yahoo.fr',
+  'hotmail.co.uk','hotmail.fr','hotmail.de','rocketmail.com','inbox.com',
+]
+
+function isBusinessEmail(email: string): boolean {
+  const domain = email.split('@')[1]?.toLowerCase()
+  if (!domain) return false
+  return !FREE_EMAIL_DOMAINS.includes(domain)
+}
+
+function SignupForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const supabase = createClient()
 
-  const [role, setRole] = useState<UserRole>('talent')
+  const [role, setRole] = useState<UserRole>(() => {
+    const param = searchParams.get('role')
+    return param === 'employer' ? 'employer' : 'talent'
+  })
   const [fullName, setFullName] = useState('')
   const [companyName, setCompanyName] = useState('')
   const [email, setEmail] = useState('')
@@ -21,9 +38,18 @@ export default function SignupPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  useEffect(() => {
+    const param = searchParams.get('role')
+    if (param === 'employer' || param === 'talent') setRole(param)
+  }, [searchParams])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (password.length < 8) { setError('Password must be at least 8 characters'); return }
+    if (role === 'employer' && !isBusinessEmail(email)) {
+      setError('Please use a business email address. Free email providers (Gmail, Yahoo, etc.) are not accepted for employer accounts.')
+      return
+    }
     setLoading(true)
     setError('')
 
@@ -44,14 +70,8 @@ export default function SignupPage() {
     if (!data.user) { setError('Something went wrong. Please try again.'); setLoading(false); return }
 
     // Profile row is created automatically by the handle_new_user DB trigger.
-    // If there's a session the user is signed in immediately (email confirm off).
-    // If not, they need to confirm their email first.
-    if (data.session) {
-      router.push(role === 'employer' ? '/dashboard/employer' : '/dashboard/talent')
-      router.refresh()
-    } else {
-      router.push('/auth/check-email')
-    }
+    // Redirect to email verification (PIN) regardless of whether Supabase email confirm is on.
+    router.push('/auth/verify-email')
   }
 
   return (
@@ -59,7 +79,7 @@ export default function SignupPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Create your account</h1>
-          <p className="text-slate-500 mt-1 text-sm">Join TalentDeck — it&apos;s free</p>
+          <p className="text-slate-500 mt-1 text-sm">Join Folio — it&apos;s free</p>
         </div>
 
         <div className="card p-6">
@@ -74,23 +94,40 @@ export default function SignupPage() {
             <div>
               <label className="label">I am a…</label>
               <div className="grid grid-cols-2 gap-2">
-                {(['talent', 'employer'] as const).map((r) => (
-                  <button
-                    key={r}
-                    type="button"
-                    onClick={() => setRole(r)}
-                    className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all ${
-                      role === r
-                        ? 'border-indigo-500 bg-indigo-50 text-indigo-700'
-                        : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                    }`}
-                  >
-                    {r === 'talent' ? '🙋 Talent' : '🏢 Employer'}
-                    <p className="text-xs font-normal mt-0.5 text-current opacity-70">
-                      {r === 'talent' ? 'Get discovered' : 'Find talent'}
-                    </p>
-                  </button>
-                ))}
+                <button
+                  type="button"
+                  onClick={() => setRole('talent')}
+                  className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all text-left ${
+                    role === 'talent'
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    Talent
+                  </div>
+                  <p className="text-xs font-normal opacity-70">Get discovered</p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('employer')}
+                  className={`p-3 rounded-xl border-2 text-sm font-semibold transition-all text-left ${
+                    role === 'employer'
+                      ? 'border-slate-900 bg-slate-900 text-white'
+                      : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+                    </svg>
+                    Employer
+                  </div>
+                  <p className="text-xs font-normal opacity-70">Find talent</p>
+                </button>
               </div>
             </div>
 
@@ -178,7 +215,22 @@ export default function SignupPage() {
             Sign in
           </Link>
         </p>
+
+        <p className="text-center text-xs text-slate-400 mt-4">
+          By creating an account you agree to our{' '}
+          <Link href="/terms" className="hover:text-slate-600 underline underline-offset-2">Terms of Service</Link>
+          {' '}and{' '}
+          <Link href="/privacy" className="hover:text-slate-600 underline underline-offset-2">Privacy Policy</Link>.
+        </p>
       </div>
     </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-slate-50"><div className="text-sm text-slate-500">Loading…</div></div>}>
+      <SignupForm />
+    </Suspense>
   )
 }

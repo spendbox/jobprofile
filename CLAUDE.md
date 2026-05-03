@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-**TalentDeck** — a talent-discovery platform where talent create role profiles and employers send interview requests. Built with Next.js 14 (App Router), Supabase (auth + storage + Postgres), and Prisma 7 as the ORM.
+**Folio** — a talent-discovery platform where talent create role profiles and employers send interview requests. Built with Next.js 14 (App Router), Supabase (auth + storage + Postgres), and Prisma 7 as the ORM.
 
 ## Commands
 

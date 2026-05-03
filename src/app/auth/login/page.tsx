@@ -115,7 +115,7 @@ export default function LoginPage() {
       <div className="w-full max-w-sm">
         <div className="text-center mb-8">
           <h1 className="text-2xl font-bold text-slate-900">Welcome back</h1>
-          <p className="text-slate-500 mt-1 text-sm">Sign in to your TalentDeck account</p>
+          <p className="text-slate-500 mt-1 text-sm">Sign in to your Folio account</p>
         </div>
 
         <div className="card p-6">
@@ -129,6 +129,12 @@ export default function LoginPage() {
           <Link href="/auth/signup" className="text-indigo-600 font-semibold hover:text-indigo-700">
             Create one free
           </Link>
+        </p>
+
+        <p className="text-center text-xs text-slate-400 mt-4">
+          <Link href="/terms" className="hover:text-slate-600 underline underline-offset-2">Terms of Service</Link>
+          {' · '}
+          <Link href="/privacy" className="hover:text-slate-600 underline underline-offset-2">Privacy Policy</Link>
         </p>
       </div>
     </div>

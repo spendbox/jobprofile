@@ -1,11 +1,10 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { SkillTag } from '@/components/ui/SkillTag'
 import { TIMEZONES } from '@/types'
-import type { TalentProfile, AvailabilityStatus, PortfolioItem, CVData } from '@/types'
+import type { TalentProfile, PortfolioItem, CVData } from '@/types'
 
 interface ProfileFormProps {
   userId: string
@@ -13,11 +12,6 @@ interface ProfileFormProps {
   onSaved: (profile: TalentProfile) => void
   onCancel: () => void
 }
-
-const AVAILABILITY_OPTIONS: { value: AvailabilityStatus; label: string; desc: string }[] = [
-  { value: 'available', label: 'Available Now', desc: 'Actively looking, available to start immediately' },
-  { value: 'not_looking', label: 'Not Available', desc: 'Not seeking new opportunities right now' },
-]
 
 const STEP_LABELS = ['The Role', 'CV & Skills', 'Availability', 'Portfolio']
 
@@ -55,9 +49,10 @@ const PORTFOLIO_TYPE_ICON: Record<string, React.ReactNode> = {
   ),
 }
 
-export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileFormProps) {
+export function ProfileForm({ userId, existing, onSaved, onCancel, userEmail }: ProfileFormProps & { userEmail?: string }) {
   const supabase = createClient()
   const cvFileRef = useRef<HTMLInputElement>(null)
+  const portfolioFileRef = useRef<HTMLInputElement>(null)
 
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1)
   const [loading, setLoading] = useState(false)
@@ -71,12 +66,20 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
 
   // Portfolio items
   const [portfolioItems, setPortfolioItems] = useState<PortfolioItem[]>([])
+  // Inline portfolio add form
+  const [showPortfolioAdd, setShowPortfolioAdd] = useState(false)
+  const [addType, setAddType] = useState<'image' | 'document' | 'link' | 'video'>('link')
+  const [addLabel, setAddLabel] = useState('')
+  const [addUrl, setAddUrl] = useState('')
+  const [addFile, setAddFile] = useState<File | null>(null)
+  const [addError, setAddError] = useState('')
+  const [adding, setAdding] = useState(false)
 
   // CV state
   const [cvFile, setCvFile] = useState<File | null>(null)
   const [cvData, setCvData] = useState<CVData | null>(existing?.cv_data ?? null)
   const [cvFilePath, setCvFilePath] = useState(existing?.cv_file_path ?? '')
-  const [cvStage, setCvStage] = useState<CvStage>('idle')
+  const [cvStage, setCvStage] = useState<CvStage>(existing?.cv_file_path ? 'done' : 'idle')
   const [cvParseError, setCvParseError] = useState('')
   const [suggestedSkills, setSuggestedSkills] = useState<string[]>([])
   const [cvUploading, setCvUploading] = useState(false)
@@ -86,8 +89,10 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
     bio: existing?.bio ?? '',
     skills: existing?.skills ?? ([] as string[]),
     years_experience: existing?.years_experience ?? 0,
-    timezone: existing?.timezone ?? 'UTC',
-    availability_status: (existing?.availability_status === 'open' ? 'available' : (existing?.availability_status ?? 'available')) as AvailabilityStatus,
+    timezone: existing?.timezone ?? 'UTC+0',
+    email_contact: existing?.email_contact ?? userEmail ?? '',
+    work_arrangement_preference: existing?.work_arrangement_preference ?? ([] as string[]),
+    willing_to_travel: existing?.willing_to_travel ?? false,
     portfolio_item_ids: existing?.portfolio_item_ids ?? ([] as string[]),
   })
 
@@ -141,6 +146,47 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   const togglePortfolioItem = (id: string) => {
     const current = form.portfolio_item_ids
     set('portfolio_item_ids', current.includes(id) ? current.filter((x) => x !== id) : [...current, id])
+  }
+
+  const handleAddPortfolioItem = async () => {
+    if (!addLabel.trim()) { setAddError('Label is required'); return }
+    if ((addType === 'link' || addType === 'video') && !addUrl.trim()) { setAddError('URL is required'); return }
+    if ((addType === 'image' || addType === 'document') && !addFile) { setAddError('Please select a file'); return }
+    setAdding(true); setAddError('')
+    try {
+      let file_path: string | undefined, file_url: string | undefined, external_url: string | undefined
+      if (addType === 'link' || addType === 'video') {
+        external_url = addUrl.trim()
+      } else if (addFile) {
+        const ext = addFile.name.split('.').pop()?.toLowerCase() ?? ''
+        const mimeMap: Record<string, string> = {
+          jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp', gif: 'image/gif',
+          pdf: 'application/pdf', doc: 'application/msword',
+          docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        }
+        const contentType = addFile.type || mimeMap[ext] || 'application/octet-stream'
+        const path = `${userId}/${Date.now()}_${addFile.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`
+        const { error: uploadErr } = await supabase.storage.from('portfolio').upload(path, addFile, { contentType, upsert: true })
+        if (uploadErr) throw new Error(uploadErr.message)
+        const { data: pub } = supabase.storage.from('portfolio').getPublicUrl(path)
+        file_path = path; file_url = pub.publicUrl
+      }
+      const { data: newItem, error: dbErr } = await supabase
+        .from('portfolio_items')
+        .insert({ user_id: userId, label: addLabel.trim(), type: addType, file_path, file_url, external_url })
+        .select().single()
+      if (dbErr) throw new Error(dbErr.message)
+      if (newItem) {
+        setPortfolioItems((prev) => [newItem as PortfolioItem, ...prev])
+        set('portfolio_item_ids', [...form.portfolio_item_ids, (newItem as PortfolioItem).id])
+      }
+      setAddLabel(''); setAddUrl(''); setAddFile(null); setShowPortfolioAdd(false)
+      if (portfolioFileRef.current) portfolioFileRef.current.value = ''
+    } catch (err) {
+      setAddError(err instanceof Error ? err.message : 'Failed to add item')
+    } finally {
+      setAdding(false)
+    }
   }
 
   const handleCvSelect = async (file: File) => {
@@ -208,9 +254,12 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
         role_title: form.role_title.trim(),
         bio: form.bio.trim() || null,
         skills: form.skills,
-        years_experience: Number(form.years_experience),
+        years_experience: Number(form.years_experience) || 0,
         timezone: form.timezone || null,
-        availability_status: form.availability_status,
+        availability_status: 'available',
+        email_contact: form.email_contact.trim() || null,
+        work_arrangement_preference: form.work_arrangement_preference,
+        willing_to_travel: form.willing_to_travel,
         portfolio_item_ids: form.portfolio_item_ids,
         cv_data: cvData ?? null,
         cv_file_path: finalCvFilePath || null,
@@ -235,7 +284,11 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
   }
 
   const advance = () => {
-    if (step === 1 && !form.role_title.trim()) { setError('Role title is required'); return }
+    if (step === 1) {
+      if (!form.role_title.trim()) { setError('Role title is required'); return }
+      if (!cvData && !cvFilePath) { setError('Please upload your CV to continue'); return }
+      if (cvParsing) { setError('Please wait for your CV to finish parsing'); return }
+    }
     setError('')
     setStep((s) => (s + 1) as 1 | 2 | 3 | 4)
   }
@@ -282,7 +335,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-black text-slate-900 mb-1">What role are you offering?</h2>
-              <p className="text-sm text-slate-500">This is the headline employers see on your profile card.</p>
+              <p className="text-sm text-slate-500">Start with your title, experience, and CV.</p>
             </div>
 
             {/* Role title with autocomplete */}
@@ -295,7 +348,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                 onChange={(e) => handleRoleTitleChange(e.target.value)}
                 onFocus={() => form.role_title.trim() && setShowSuggestions(true)}
                 onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                onKeyDown={(e) => { if (e.key === 'Enter' && form.role_title.trim()) advance() }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); setShowSuggestions(false) } }}
                 autoFocus
               />
               {showSuggestions && roleSuggestions.length > 0 && (
@@ -320,36 +373,17 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
               <input
                 type="number" min={0} max={50}
                 className="input-base"
-                value={form.years_experience}
-                onChange={(e) => set('years_experience', e.target.value)}
+                value={form.years_experience === 0 ? '' : form.years_experience}
+                placeholder="0"
+                onFocus={(e) => { if (Number(e.target.value) === 0) set('years_experience', '') }}
+                onChange={(e) => set('years_experience', e.target.value === '' ? 0 : Math.max(0, parseInt(e.target.value, 10) || 0))}
               />
             </div>
 
-            {/* Bio */}
+            {/* CV upload — required */}
             <div>
-              <label className="label">Professional Bio <span className="text-slate-400 font-normal">(optional)</span></label>
-              <textarea
-                className="input-base resize-none"
-                rows={5}
-                placeholder="A short intro about your experience and what you bring to the table…"
-                value={form.bio}
-                onChange={(e) => set('bio', e.target.value)}
-              />
-            </div>
-          </div>
-        )}
-
-        {/* ── Step 2: CV & Skills ────────────────────────────────────────── */}
-        {step === 2 && (
-          <div className="space-y-8">
-            <div>
-              <h2 className="text-2xl font-black text-slate-900 mb-1">CV &amp; Skills</h2>
-              <p className="text-sm text-slate-500">Upload your CV to auto-fill skills, or add them manually.</p>
-            </div>
-
-            {/* CV upload section */}
-            <div>
-              <label className="label mb-3">CV / Resume</label>
+              <label className="label mb-1">CV / Resume <span className="text-red-500">*</span></label>
+              <p className="text-xs text-slate-400 mb-3">Required — AI will extract your skills, experience &amp; bio.</p>
 
               {cvStage === 'done' && cvData ? (
                 <div className="border border-emerald-200 bg-emerald-50 rounded-2xl p-4 space-y-3">
@@ -361,19 +395,12 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                       <span className="text-sm font-bold text-emerald-800">CV parsed successfully</span>
                     </div>
                     <button
-                      onClick={() => {
-                        setCvData(null)
-                        setCvFile(null)
-                        setSuggestedSkills([])
-                        setCvStage('idle')
-                        if (cvFileRef.current) cvFileRef.current.value = ''
-                      }}
+                      onClick={() => { setCvData(null); setCvFile(null); setSuggestedSkills([]); setCvStage('idle'); setCvFilePath(''); if (cvFileRef.current) cvFileRef.current.value = '' }}
                       className="text-xs text-slate-500 hover:text-slate-700"
                     >
                       Replace
                     </button>
                   </div>
-
                   <div className="grid grid-cols-3 gap-2 text-center">
                     {[
                       { label: 'Experience', count: cvData.experience.length },
@@ -386,15 +413,8 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                       </div>
                     ))}
                   </div>
-
-                  {cvData.summary && (
-                    <p className="text-xs text-slate-600 leading-relaxed line-clamp-3 bg-white rounded-xl p-3 border border-emerald-100">
-                      {cvData.summary}
-                    </p>
-                  )}
                 </div>
-              ) : cvParsing ? (
-                /* Stage indicator */
+              ) : cvStage === 'uploading' || cvStage === 'extracting' || cvStage === 'parsing' ? (
                 <div className="border border-indigo-100 bg-indigo-50 rounded-2xl p-5">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-5 h-5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin flex-shrink-0" />
@@ -428,16 +448,8 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                   />
                   {cvFilePath && !cvFile && cvStage === 'idle' ? (
                     <div className="flex items-center gap-3 p-3.5 bg-slate-50 border border-slate-200 rounded-xl mb-3">
-                      <svg className="w-5 h-5 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25" />
-                      </svg>
                       <span className="text-sm text-slate-700 flex-1 truncate">CV attached</span>
-                      <button
-                        onClick={() => { setCvFilePath(''); setCvData(null) }}
-                        className="text-xs text-red-400 hover:text-red-600 flex-shrink-0"
-                      >
-                        Remove
-                      </button>
+                      <button onClick={() => { setCvFilePath(''); setCvData(null) }} className="text-xs text-red-400 hover:text-red-600 flex-shrink-0">Remove</button>
                     </div>
                   ) : null}
                   <button onClick={() => cvFileRef.current?.click()} className="btn-secondary w-full">
@@ -446,16 +458,35 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                   {cvParseError && (
                     <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mt-3">{cvParseError}</p>
                   )}
-                  <p className="text-xs text-slate-400 text-center mt-1.5">AI will extract your experience, education &amp; skills</p>
                 </div>
               )}
             </div>
+          </div>
+        )}
 
-            {/* Skills section */}
+        {/* ── Step 2: Your Experience ───────────────────────────────────── */}
+        {step === 2 && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="text-2xl font-black text-slate-900 mb-1">Your Experience</h2>
+              <p className="text-sm text-slate-500">Review and refine what was extracted from your CV.</p>
+            </div>
+
+            {/* Bio — autofilled from CV */}
+            <div>
+              <label className="label">Professional Bio</label>
+              <textarea
+                className="input-base resize-none"
+                rows={4}
+                placeholder="A short intro about your experience and what you bring to the table…"
+                value={form.bio}
+                onChange={(e) => set('bio', e.target.value)}
+              />
+            </div>
+
+            {/* Skills */}
             <div>
               <label className="label">Skills</label>
-
-              {/* Suggested skills from CV */}
               {suggestedSkills.length > 0 && (
                 <div className="mb-3 p-3 bg-indigo-50 border border-indigo-100 rounded-xl">
                   <p className="text-xs font-semibold text-indigo-700 mb-2">Found in CV — tap to add:</p>
@@ -475,7 +506,6 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                   </div>
                 </div>
               )}
-
               <div className="flex gap-2 mb-3">
                 <input
                   className="input-base"
@@ -491,102 +521,188 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
                   {form.skills.map((s) => <SkillTag key={s} skill={s} onRemove={() => removeSkill(s)} />)}
                 </div>
               ) : (
-                <p className="text-xs text-slate-400">No skills added yet. Upload a CV or type them above.</p>
+                <p className="text-xs text-slate-400">No skills yet. Add them above.</p>
               )}
             </div>
+
+            {/* Education — read-only from CV */}
+            {cvData && cvData.education.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Education (from CV)</p>
+                <div className="space-y-2">
+                  {cvData.education.map((edu, i) => (
+                    <div key={i} className="bg-slate-50 border border-slate-100 rounded-xl px-3 py-2.5">
+                      <p className="text-sm font-semibold text-slate-800">{edu.degree}</p>
+                      <p className="text-xs text-slate-500 mt-0.5">{edu.school}{edu.period ? ` · ${edu.period}` : ''}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Languages — read-only from CV */}
+            {cvData && cvData.languages.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Languages (from CV)</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {cvData.languages.map((lang) => (
+                    <span key={lang} className="text-xs bg-violet-50 text-violet-700 border border-violet-100 px-2.5 py-1 rounded-full font-medium">
+                      {lang}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {/* ── Step 3: Availability ──────────────────────────────────────── */}
+        {/* ── Step 3: Preferences ───────────────────────────────────────── */}
         {step === 3 && (
           <div className="space-y-6">
             <div>
-              <h2 className="text-2xl font-black text-slate-900 mb-1">What&apos;s your availability?</h2>
-              <p className="text-sm text-slate-500">Employers see this on your profile card.</p>
+              <h2 className="text-2xl font-black text-slate-900 mb-1">Your Preferences</h2>
+              <p className="text-sm text-slate-500">Help employers understand your setup and expectations.</p>
             </div>
-            <div className="space-y-2">
-              {AVAILABILITY_OPTIONS.map(({ value, label, desc }) => (
-                <label
-                  key={value}
-                  className={`flex items-start gap-3 p-4 rounded-xl border cursor-pointer transition-colors ${
-                    form.availability_status === value ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                  }`}
-                >
-                  <input
-                    type="radio" name="availability_status" value={value}
-                    checked={form.availability_status === value}
-                    onChange={() => set('availability_status', value)}
-                    className="mt-0.5 accent-indigo-600"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{label}</p>
-                    <p className="text-xs text-slate-500 mt-0.5">{desc}</p>
-                  </div>
-                </label>
-              ))}
-            </div>
+
+            {/* Timezone */}
             <div>
               <label className="label">Timezone</label>
               <select className="input-base" value={form.timezone} onChange={(e) => set('timezone', e.target.value)}>
                 {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
               </select>
             </div>
+
+            {/* Email contact */}
+            <div>
+              <label className="label">Contact Email</label>
+              <input
+                type="email"
+                className="input-base"
+                placeholder="you@example.com"
+                value={form.email_contact}
+                onChange={(e) => set('email_contact', e.target.value)}
+              />
+              <p className="text-xs text-slate-400 mt-1">Shown to employers who reach out — defaults to your account email.</p>
+            </div>
+
+            {/* Work arrangement preference */}
+            <div>
+              <label className="label">Work Preference <span className="text-slate-400 font-normal text-xs">(select all that apply)</span></label>
+              <div className="flex gap-2 flex-wrap mt-1">
+                {(['remote', 'hybrid', 'onsite'] as const).map((a) => {
+                  const selected = form.work_arrangement_preference.includes(a)
+                  return (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => {
+                        const current = form.work_arrangement_preference
+                        set('work_arrangement_preference', selected ? current.filter((x) => x !== a) : [...current, a])
+                      }}
+                      className={`px-4 py-2 rounded-xl text-sm font-semibold border transition-colors ${
+                        selected ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      {a === 'remote' ? 'Remote' : a === 'hybrid' ? 'Hybrid' : 'On-site'}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Willing to travel — only if hybrid or onsite selected */}
+            {(form.work_arrangement_preference.includes('hybrid') || form.work_arrangement_preference.includes('onsite')) && (
+              <div>
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form.willing_to_travel}
+                    onChange={(e) => set('willing_to_travel', e.target.checked)}
+                    className="w-4 h-4 accent-indigo-600 rounded"
+                  />
+                  <span className="text-sm font-medium text-slate-700">Willing to travel for work</span>
+                </label>
+              </div>
+            )}
           </div>
         )}
 
         {/* ── Step 4: Portfolio ──────────────────────────────────────────── */}
         {step === 4 && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-black text-slate-900 mb-1">Work Samples</h2>
-              <p className="text-sm text-slate-500">Pick items from your portfolio to show on this profile. You can always add or update these later from your dashboard.</p>
+              <p className="text-sm text-slate-500">Add portfolio items and select which ones to show on this profile.</p>
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-3">
-                <label className="label mb-0">Portfolio Items</label>
-                <Link href="/dashboard/talent/portfolio" target="_blank" className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">
-                  Manage Portfolio ↗
-                </Link>
-              </div>
-
-              {portfolioItems.length === 0 ? (
-                <div className="border border-dashed border-slate-300 rounded-xl p-6 text-center">
-                  <p className="text-sm text-slate-500 mb-3">No portfolio items yet.</p>
-                  <Link href="/dashboard/talent/portfolio" target="_blank" className="text-xs font-semibold text-indigo-600 hover:text-indigo-700">
-                    Add items to your portfolio →
-                  </Link>
-                </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-72 overflow-y-auto pr-1">
+            {/* Existing items checklist */}
+            {portfolioItems.length > 0 && (
+              <div>
+                <label className="label mb-3">Select items to show</label>
+                <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
                   {portfolioItems.map((item) => {
                     const checked = form.portfolio_item_ids.includes(item.id)
                     return (
-                      <label
-                        key={item.id}
-                        className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${
-                          checked ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          checked={checked}
-                          onChange={() => togglePortfolioItem(item.id)}
-                          className="accent-indigo-600 flex-shrink-0"
-                        />
+                      <label key={item.id} className={`flex items-center gap-2.5 p-2.5 rounded-xl border cursor-pointer transition-colors ${checked ? 'border-indigo-400 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'}`}>
+                        <input type="checkbox" checked={checked} onChange={() => togglePortfolioItem(item.id)} className="accent-indigo-600 flex-shrink-0" />
                         <span className="text-slate-400 flex-shrink-0">{PORTFOLIO_TYPE_ICON[item.type]}</span>
                         <span className="text-xs font-medium text-slate-800 truncate">{item.label}</span>
                       </label>
                     )
                   })}
                 </div>
-              )}
-              {form.portfolio_item_ids.length > 0 && (
-                <p className="text-xs text-indigo-600 font-medium mt-2">
-                  {form.portfolio_item_ids.length} item{form.portfolio_item_ids.length !== 1 ? 's' : ''} selected
-                </p>
-              )}
-            </div>
+                {form.portfolio_item_ids.length > 0 && (
+                  <p className="text-xs text-indigo-600 font-medium mt-2">{form.portfolio_item_ids.length} item{form.portfolio_item_ids.length !== 1 ? 's' : ''} selected</p>
+                )}
+              </div>
+            )}
+
+            {/* Add new item inline */}
+            {!showPortfolioAdd ? (
+              <button onClick={() => setShowPortfolioAdd(true)} className="btn-secondary w-full">
+                + Add Portfolio Item
+              </button>
+            ) : (
+              <div className="border border-slate-200 rounded-2xl p-4 space-y-3">
+                <p className="text-sm font-semibold text-slate-900">New Portfolio Item</p>
+
+                {/* Type selector */}
+                <div className="flex gap-1.5 flex-wrap">
+                  {(['link', 'image', 'document', 'video'] as const).map((t) => (
+                    <button key={t} type="button" onClick={() => setAddType(t)}
+                      className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition-colors ${addType === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}>
+                      {t.charAt(0).toUpperCase() + t.slice(1)}
+                    </button>
+                  ))}
+                </div>
+
+                <input className="input-base text-sm" placeholder="Label (e.g. My GitHub, Design Portfolio)" value={addLabel} onChange={(e) => setAddLabel(e.target.value)} />
+
+                {(addType === 'link' || addType === 'video') ? (
+                  <input className="input-base text-sm" placeholder="URL" value={addUrl} onChange={(e) => setAddUrl(e.target.value)} />
+                ) : (
+                  <div>
+                    <input ref={portfolioFileRef} type="file"
+                      accept={addType === 'image' ? '.jpg,.jpeg,.png,.webp,.gif' : '.pdf,.doc,.docx'}
+                      className="hidden"
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) setAddFile(f) }}
+                    />
+                    <button onClick={() => portfolioFileRef.current?.click()} className="btn-secondary w-full text-sm">
+                      {addFile ? addFile.name : `Choose ${addType === 'image' ? 'image' : 'document'}`}
+                    </button>
+                  </div>
+                )}
+
+                {addError && <p className="text-xs text-red-600">{addError}</p>}
+
+                <div className="flex gap-2">
+                  <button onClick={() => { setShowPortfolioAdd(false); setAddLabel(''); setAddUrl(''); setAddFile(null); setAddError('') }} className="btn-secondary flex-1 text-sm">Cancel</button>
+                  <button onClick={handleAddPortfolioItem} disabled={adding} className="btn-primary flex-1 text-sm disabled:opacity-50">
+                    {adding ? 'Adding…' : 'Add Item'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -601,7 +717,7 @@ export function ProfileForm({ userId, existing, onSaved, onCancel }: ProfileForm
           <button onClick={onCancel} className="btn-secondary">Cancel</button>
         )}
         {step < 4 ? (
-          <button onClick={advance} disabled={step === 2 && cvParsing} className="btn-primary flex-1">
+          <button onClick={advance} disabled={(step === 1 || step === 2) && cvParsing} className="btn-primary flex-1">
             Continue
           </button>
         ) : (

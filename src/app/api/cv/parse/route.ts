@@ -2,8 +2,6 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import path from 'path'
-import { pathToFileURL } from 'url'
 
 const SYSTEM_PROMPT = `You are a CV/resume parser. Extract structured information and return ONLY valid JSON with this exact shape:
 {
@@ -21,37 +19,12 @@ Rules:
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
 
-// pdfjs-dist v5 validates workerPort with `instanceof Worker`, which fails in Node.js
-// (no global Worker). Instead, point workerSrc at the worker file so pdfjs falls
-// through to its built-in fake-worker (in-process) mode automatically.
-let pdfjsInitialised = false
-
 async function extractPdfText(buffer: Buffer): Promise<string> {
-  const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
-
-  if (!pdfjsInitialised) {
-    const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-    pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
-    pdfjsInitialised = true
-  }
-
-  const doc = await pdfjsLib.getDocument({
-    data: new Uint8Array(buffer),
-    useSystemFonts: true,
-    disableFontFace: true,
-  }).promise
-
-  const pages: string[] = []
-  for (let p = 1; p <= doc.numPages; p++) {
-    const page = await doc.getPage(p)
-    const content = await page.getTextContent()
-    pages.push(
-      content.items
-        .map((item) => ('str' in item ? (item as { str: string }).str : ''))
-        .join(' ')
-    )
-  }
-  return pages.join('\n')
+  // pdf-parse@1.x uses pdfjs-dist v2.x internally — pure Node.js, no DOMMatrix/canvas
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const pdfParse: (buf: Buffer) => Promise<{ text: string }> = require('pdf-parse')
+  const data = await pdfParse(buffer)
+  return data.text
 }
 
 export async function POST(req: NextRequest) {

@@ -2,17 +2,19 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
-import { Avatar } from '@/components/ui/Avatar'
-import { timeAgo } from '@/lib/utils'
+import { UncontactedRow, ContactedRow } from '@/components/employer/PipelineRows'
 import type { TalentFind, TalentFindCandidate, InterviewRequest, RequestStage } from '@/types'
 import { STAGE_LABELS, EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
+import { timeAgo } from '@/lib/utils'
 
-const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired']
+type ViewFilter = 'matches' | RequestStage | 'notes' | 'responses'
+
+const STAGES: RequestStage[] = ['discovered', 'interested', 'interview', 'offer', 'hired', 'rejected']
 
 // ─── NavItem ──────────────────────────────────────────────────────────────────
 function NavItem({ icon, label, count, active, onClick }: {
@@ -34,275 +36,6 @@ function NavItem({ icon, label, count, active, onClick }: {
   )
 }
 
-// ─── Star Rating ──────────────────────────────────────────────────────────────
-function StarRating({ value, onChange }: { value?: number; onChange: (v: number) => void }) {
-  const [hover, setHover] = useState(0)
-  return (
-    <div className="flex gap-0.5">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange(n)}
-          onMouseEnter={() => setHover(n)}
-          onMouseLeave={() => setHover(0)}
-          className="text-xl leading-none transition-colors"
-        >
-          <span className={(hover || value || 0) >= n ? 'text-amber-400' : 'text-slate-200'}>★</span>
-        </button>
-      ))}
-    </div>
-  )
-}
-
-// ─── Candidate Detail Panel ───────────────────────────────────────────────────
-function CandidatePanel({
-  request,
-  find,
-  candidateScore,
-  onClose,
-  onStageChange,
-  onArchive,
-  onStarChange,
-}: {
-  request: InterviewRequest
-  find: TalentFind
-  candidateScore?: TalentFindCandidate
-  onClose: () => void
-  onStageChange: (id: string, stage: RequestStage) => void
-  onArchive: (id: string) => void
-  onStarChange: (id: string, rating: number) => void
-}) {
-  const supabase = createClient()
-  const profile = request.profiles
-  const name = profile?.user_profiles?.full_name ?? 'Talent'
-  const currentIdx = STAGES.indexOf(request.stage)
-  const prevStage = STAGES[currentIdx - 1]
-  const nextStage = STAGES[currentIdx + 1]
-
-  const [notes, setNotes] = useState(request.notes ?? '')
-  const [saving, setSaving] = useState(false)
-
-  const saveNotes = async () => {
-    setSaving(true)
-    await supabase.from('interview_requests').update({ notes }).eq('id', request.id)
-    setSaving(false)
-  }
-
-  const handleStar = async (rating: number) => {
-    await supabase.from('interview_requests').update({ star_rating: rating }).eq('id', request.id)
-    onStarChange(request.id, rating)
-  }
-
-  const questions = (find.custom_questions ?? []) as string[]
-  const answers = (request.question_answers ?? {}) as Record<string, string>
-
-  return (
-    <div className="flex flex-col h-full overflow-y-auto">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-slate-100 sticky top-0 bg-white z-10">
-        <h3 className="font-bold text-slate-900 text-base truncate">{name}</h3>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-
-      <div className="p-5 space-y-5 flex-1">
-        {/* Identity */}
-        <div className="flex items-center gap-4">
-          <Avatar name={name} size="lg" src={profile?.user_profiles?.avatar_url} />
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-bold text-slate-900">{name}</p>
-              {profile?.user_profiles?.is_verified && (
-                <span className="inline-flex items-center justify-center w-4 h-4 bg-indigo-600 rounded-full" title="Verified">
-                  <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                  </svg>
-                </span>
-              )}
-            </div>
-            <p className="text-sm text-slate-500 mt-0.5">{profile?.role_title}</p>
-            <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-              <span className={`text-xs px-2 py-0.5 rounded-full font-semibold ${
-                request.stage === 'hired' ? 'bg-emerald-100 text-emerald-700'
-                : request.stage === 'offer' ? 'bg-amber-100 text-amber-700'
-                : request.stage === 'interview' ? 'bg-violet-100 text-violet-700'
-                : request.stage === 'interested' ? 'bg-indigo-100 text-indigo-700'
-                : 'bg-slate-100 text-slate-600'
-              }`}>
-                {STAGE_LABELS[request.stage]}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* AI score */}
-        {candidateScore && (
-          <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-3.5">
-            <div className="flex items-center justify-between mb-1.5">
-              <p className="text-xs font-bold text-indigo-700 uppercase tracking-wide">AI Match Score</p>
-              <span className="text-xl font-black text-indigo-700">{candidateScore.ai_score}%</span>
-            </div>
-            {candidateScore.ai_summary && (
-              <p className="text-xs text-indigo-600 leading-relaxed">{candidateScore.ai_summary}</p>
-            )}
-          </div>
-        )}
-
-        {/* Star rating */}
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Your rating</p>
-          <StarRating value={request.star_rating} onChange={handleStar} />
-        </div>
-
-        {/* Notes */}
-        <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Notes</p>
-          <textarea
-            rows={3}
-            className="input-base resize-none text-sm w-full"
-            placeholder="Add private notes about this candidate…"
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            onBlur={saveNotes}
-          />
-          {saving && <p className="text-xs text-slate-400 mt-1">Saving…</p>}
-        </div>
-
-        {/* Q&A */}
-        {questions.length > 0 && (
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Screening Q&A</p>
-            <div className="space-y-3">
-              {questions.map((q, i) => (
-                <div key={i}>
-                  <p className="text-xs font-semibold text-slate-700 mb-1">{q}</p>
-                  <p className={`text-sm leading-relaxed p-2.5 rounded-lg border ${
-                    answers[`q${i}`]
-                      ? 'bg-white border-slate-200 text-slate-700'
-                      : 'bg-slate-50 border-slate-100 text-slate-400 italic'
-                  }`}>
-                    {answers[`q${i}`] || 'No answer yet'}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Stage nav — employers cannot set 'discovered' or 'interested' (candidate-driven) */}
-        {request.stage !== 'discovered' && (
-          <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Move stage</p>
-            <div className="flex gap-2">
-              {prevStage && prevStage !== 'discovered' && (
-                <button
-                  onClick={() => onStageChange(request.id, prevStage)}
-                  className="flex-1 btn-secondary text-xs py-2"
-                >
-                  ← {STAGE_LABELS[prevStage]}
-                </button>
-              )}
-              {nextStage && (
-                <button
-                  onClick={() => onStageChange(request.id, nextStage)}
-                  className="flex-1 btn-primary text-xs py-2"
-                >
-                  {STAGE_LABELS[nextStage]} →
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Profile links */}
-        <div className="flex flex-wrap gap-2 pt-1">
-          <Link
-            href={`/profile/${request.profile_id}`}
-            target="_blank"
-            className="btn-secondary text-xs py-2"
-          >
-            View Full Profile →
-          </Link>
-          {(profile?.portfolio_item_ids?.length ?? 0) > 0 && (
-            <Link href={`/profile/${request.profile_id}`} target="_blank" className="btn-secondary text-xs py-2">
-              Portfolio
-            </Link>
-          )}
-        </div>
-
-        {/* Archive */}
-        <button
-          onClick={() => onArchive(request.id)}
-          className="w-full text-xs py-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
-        >
-          Archive candidate
-        </button>
-      </div>
-    </div>
-  )
-}
-
-// ─── Candidate Row ────────────────────────────────────────────────────────────
-function CandidateRow({
-  request,
-  candidateScore,
-  selected,
-  onSelect,
-}: {
-  request: InterviewRequest
-  candidateScore?: TalentFindCandidate
-  selected: boolean
-  onSelect: () => void
-}) {
-  const profile = request.profiles
-  const name = profile?.user_profiles?.full_name ?? 'Talent'
-
-  return (
-    <button
-      onClick={onSelect}
-      className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border transition-colors text-left ${
-        selected ? 'bg-indigo-50 border-indigo-200' : 'bg-white border-slate-100 hover:bg-slate-50'
-      }`}
-    >
-      <Avatar name={name} size="sm" src={profile?.user_profiles?.avatar_url} />
-      <div className="flex-1 min-w-0">
-        <div className="flex items-center gap-1.5">
-          <p className="text-sm font-semibold text-slate-900 truncate">{name}</p>
-          {profile?.user_profiles?.is_verified && (
-            <span className="inline-flex items-center justify-center w-3.5 h-3.5 bg-indigo-600 rounded-full flex-shrink-0" title="Verified">
-              <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
-                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-              </svg>
-            </span>
-          )}
-        </div>
-        <p className="text-xs text-slate-500 truncate mt-0.5">{profile?.role_title}</p>
-      </div>
-      <div className="flex flex-col items-end gap-1 flex-shrink-0">
-        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-          request.stage === 'hired' ? 'bg-emerald-100 text-emerald-700'
-          : request.stage === 'offer' ? 'bg-amber-100 text-amber-700'
-          : request.stage === 'interview' ? 'bg-violet-100 text-violet-700'
-          : request.stage === 'interested' ? 'bg-indigo-100 text-indigo-700'
-          : 'bg-slate-100 text-slate-600'
-        }`}>
-          {STAGE_LABELS[request.stage]}
-        </span>
-        {candidateScore && (
-          <span className="text-[10px] font-bold text-indigo-500">{candidateScore.ai_score}%</span>
-        )}
-        {request.star_rating && (
-          <span className="text-amber-400 text-xs leading-none">{'★'.repeat(request.star_rating)}</span>
-        )}
-      </div>
-    </button>
-  )
-}
-
 // ─── Main Page ────────────────────────────────────────────────────────────────
 export default function PipelinePage() {
   const params = useParams()
@@ -312,12 +45,15 @@ export default function PipelinePage() {
   const id = params.id as string
 
   const [find, setFind] = useState<TalentFind | null>(null)
+  const [tfc, setTfc] = useState<TalentFindCandidate[]>([])
   const [requests, setRequests] = useState<InterviewRequest[]>([])
-  const [candidateScores, setCandidateScores] = useState<Record<string, TalentFindCandidate>>({})
   const [loading, setLoading] = useState(true)
-  const [activeFilter, setActiveFilter] = useState<'all' | RequestStage>('all')
-  const [selectedPanel, setSelectedPanel] = useState<string | null>(null)
-  const [starFilter, setStarFilter] = useState<number>(0)
+  const [activeFilter, setActiveFilter] = useState<ViewFilter>('matches')
+  const [expandedProfileId, setExpandedProfileId] = useState<string | null>(null)
+  const [selectedUncontacted, setSelectedUncontacted] = useState<Set<string>>(new Set())
+  const [inviting, setInviting] = useState<string | null>(null)
+  const [bulkInviting, setBulkInviting] = useState(false)
+  const [starFilter, setStarFilter] = useState(0)
   const [verifiedOnly, setVerifiedOnly] = useState(false)
   const [showArchived, setShowArchived] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -326,7 +62,13 @@ export default function PipelinePage() {
   const [editDesc, setEditDesc] = useState('')
   const [editReqs, setEditReqs] = useState('')
   const [savingSettings, setSavingSettings] = useState(false)
+  const [discoverLoading, setDiscoverLoading] = useState(false)
+  const [discoverResult, setDiscoverResult] = useState<number | null>(null)
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
+  const [deleting, setDeleting] = useState(false)
 
+  // ── loadData ────────────────────────────────────────────────────────────────
   const loadData = useCallback(async () => {
     const [findRes, scoresRes] = await Promise.all([
       fetch(`/api/talent-finds/${id}`),
@@ -340,20 +82,15 @@ export default function PipelinePage() {
       setEditReqs(f.requirements_text ?? '')
     }
 
-    let profileIds: string[] = []
     if (scoresRes.ok) {
       const scores: TalentFindCandidate[] = await scoresRes.json()
-      const map: Record<string, TalentFindCandidate> = {}
-      scores.forEach((c) => { map[c.profile_id] = c })
-      setCandidateScores(map)
-      profileIds = scores.map((c) => c.profile_id)
-    }
+      setTfc(scores)
 
-    if (profileIds.length > 0) {
+      // Fetch interview_requests scoped to this pipeline only
       const { data } = await supabase
         .from('interview_requests')
         .select('*, profiles(*, user_profiles!profiles_user_id_user_profiles_fkey(*))')
-        .in('profile_id', profileIds)
+        .eq('talent_find_id', id)
         .order('created_at', { ascending: false })
       if (data) setRequests(data as InterviewRequest[])
     }
@@ -367,19 +104,160 @@ export default function PipelinePage() {
     if (userProfile) loadData()
   }, [userProfile, loadingAuth, router, loadData])
 
-  const handleStageChange = async (requestId: string, stage: RequestStage) => {
-    await supabase.from('interview_requests').update({ stage }).eq('id', requestId)
-    setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, stage } : r))
+  // ── Derived maps ────────────────────────────────────────────────────────────
+  const tfcMap = useMemo(() => {
+    const map: Record<string, TalentFindCandidate> = {}
+    tfc.forEach((c) => { map[c.profile_id] = c })
+    return map
+  }, [tfc])
+
+  const updateTfc = useCallback((profileId: string, patch: { notes?: string; star_rating?: number }) => {
+    setTfc((prev) => prev.map((c) => c.profile_id === profileId ? { ...c, ...patch } : c))
+  }, [])
+
+  // ── View flags (must be defined before useMemo that uses them) ─────────────
+  const isMatchesView = activeFilter === 'matches'
+  const isNotesView = activeFilter === 'notes'
+  const isResponsesView = activeFilter === 'responses'
+
+  // ── Filtered lists ──────────────────────────────────────────────────────────
+  const filteredMatches = useMemo(() => {
+    let list = tfc.filter((c) => !c.contacted)
+    if (verifiedOnly) list = list.filter((c) => c.profiles?.user_profiles?.is_verified)
+    if (starFilter > 0) list = list.filter((c) => (c.star_rating ?? 0) >= starFilter)
+    return list.sort((a, b) => b.ai_score - a.ai_score)
+  }, [tfc, verifiedOnly, starFilter])
+
+  const filteredRequests = useMemo(() => {
+    return requests.filter((r) => {
+      if (isNotesView || isResponsesView) return false
+      if (activeFilter === 'rejected') return r.stage === 'rejected'
+      if (!showArchived && r.archived) return false
+      if (showArchived && !r.archived) return false
+      if (activeFilter !== 'matches' && r.stage !== activeFilter) return false
+      if (starFilter > 0 && (tfcMap[r.profile_id]?.star_rating ?? 0) < starFilter) return false
+      if (verifiedOnly && !r.profiles?.user_profiles?.is_verified) return false
+      return true
+    }).sort((a, b) => {
+      const ta = tfcMap[a.profile_id]
+      const tb = tfcMap[b.profile_id]
+      if (sortBy === 'star_rating') return (tb?.star_rating ?? 0) - (ta?.star_rating ?? 0)
+      if (sortBy === 'ai_score') return (tb?.ai_score ?? 0) - (ta?.ai_score ?? 0)
+      if (sortBy === 'name') return (a.profiles?.user_profiles?.full_name ?? '').localeCompare(b.profiles?.user_profiles?.full_name ?? '')
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    })
+  }, [requests, activeFilter, showArchived, starFilter, verifiedOnly, sortBy, tfcMap])
+
+  // ── Stage counts (non-archived only, for nav badges) ───────────────────────
+  const stageCounts = useMemo(() =>
+    STAGES.reduce((acc, s) => {
+      acc[s] = requests.filter((r) => s === 'rejected' ? r.stage === s : !r.archived && r.stage === s).length
+      return acc
+    }, {} as Record<string, number>),
+  [requests])
+
+  const notesCount = useMemo(() => {
+    const tfcWithNotes = tfc.filter((c) => c.notes?.trim()).length
+    const reqWithNotes = requests.filter((r) => r.notes?.trim()).length
+    return tfcWithNotes + reqWithNotes
+  }, [tfc, requests])
+
+  const responsesCount = useMemo(() =>
+    requests.filter((r) => r.question_answers && Object.keys(r.question_answers as Record<string, string>).length > 0).length,
+  [requests])
+
+  const matchesCount = tfc.filter((c) => !c.contacted).length
+
+  // ── Handlers ────────────────────────────────────────────────────────────────
+  const handleStageChange = async (requestId: string, stage: RequestStage, extra?: Record<string, unknown>) => {
+    const body = { stage, ...extra }
+    const res = await fetch(`/api/interview-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, ...updated } : r))
+    }
   }
 
   const handleArchive = async (requestId: string) => {
     await supabase.from('interview_requests').update({ archived: true }).eq('id', requestId)
     setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, archived: true } : r))
-    setSelectedPanel(null)
+    setExpandedProfileId(null)
   }
 
-  const handleStarChange = (requestId: string, rating: number) => {
-    setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, star_rating: rating } : r))
+  const handleUnarchive = async (requestId: string) => {
+    await supabase.from('interview_requests').update({ archived: false }).eq('id', requestId)
+    setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, archived: false } : r))
+  }
+
+  const handleReject = async (requestId: string) => {
+    await fetch(`/api/interview-requests/${requestId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ stage: 'rejected' }),
+    })
+    setRequests((prev) => prev.map((r) => r.id === requestId ? { ...r, stage: 'rejected' as RequestStage } : r))
+    setExpandedProfileId(null)
+  }
+
+  const handlePublish = async () => {
+    const res = await fetch(`/api/talent-finds/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'active' }),
+    })
+    if (res.ok) {
+      const updated = await res.json()
+      setFind(updated)
+      await loadData()
+    }
+  }
+
+  const handleDelete = async () => {
+    if (!find || deleteConfirmText !== find.role_title) return
+    setDeleting(true)
+    try {
+      await fetch(`/api/talent-finds/${id}`, { method: 'DELETE' })
+      router.push('/dashboard/employer')
+    } catch {
+      setDeleting(false)
+    }
+  }
+
+  const handleInvite = async (profileIds: string[]) => {
+    if (profileIds.length === 1) setInviting(profileIds[0])
+    else setBulkInviting(true)
+
+    const res = await fetch(`/api/talent-finds/${id}/contact`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ profile_ids: profileIds }),
+    })
+    if (res.ok) {
+      await loadData()
+      setSelectedUncontacted(new Set())
+      setExpandedProfileId(null)
+      if (activeFilter === 'matches' && filteredMatches.length === profileIds.length) {
+        setActiveFilter('discovered')
+      }
+    }
+    setInviting(null)
+    setBulkInviting(false)
+  }
+
+  const handleDiscoverMore = async () => {
+    setDiscoverLoading(true)
+    setDiscoverResult(null)
+    const res = await fetch(`/api/talent-finds/${id}/candidates`, { method: 'POST' })
+    if (res.ok) {
+      const data = await res.json()
+      setDiscoverResult(data.new_candidates ?? 0)
+      if ((data.new_candidates ?? 0) > 0) await loadData()
+    }
+    setDiscoverLoading(false)
   }
 
   const saveSettings = async () => {
@@ -388,41 +266,17 @@ export default function PipelinePage() {
     const res = await fetch(`/api/talent-finds/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ description: editDesc, requirements_text: editReqs || null }),
+      body: JSON.stringify({ requirements_text: editReqs || null }),
     })
-    if (res.ok) {
-      const updated = await res.json()
-      setFind(updated)
-    }
+    if (res.ok) setFind(await res.json())
     setSavingSettings(false)
     setSettingsOpen(false)
   }
 
-  const filteredRequests = requests.filter((r) => {
-    if (!showArchived && r.archived) return false
-    if (showArchived && !r.archived) return false
-    if (activeFilter !== 'all' && r.stage !== activeFilter) return false
-    if (starFilter > 0 && (r.star_rating ?? 0) < starFilter) return false
-    if (verifiedOnly && !r.profiles?.user_profiles?.is_verified) return false
-    return true
-  }).sort((a, b) => {
-    if (sortBy === 'star_rating') return (b.star_rating ?? 0) - (a.star_rating ?? 0)
-    if (sortBy === 'ai_score') {
-      return (candidateScores[b.profile_id]?.ai_score ?? 0) - (candidateScores[a.profile_id]?.ai_score ?? 0)
-    }
-    if (sortBy === 'name') {
-      return (a.profiles?.user_profiles?.full_name ?? '').localeCompare(b.profiles?.user_profiles?.full_name ?? '')
-    }
-    return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-  })
+  const toggleExpanded = (profileId: string) =>
+    setExpandedProfileId((prev) => (prev === profileId ? null : profileId))
 
-  const stageCounts = STAGES.reduce((acc, s) => {
-    acc[s] = requests.filter((r) => !r.archived && r.stage === s).length
-    return acc
-  }, {} as Record<string, number>)
-
-  const selectedRequest = requests.find((r) => r.id === selectedPanel)
-
+  // ── Loading / not found ─────────────────────────────────────────────────────
   if (loadingAuth || loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -440,9 +294,19 @@ export default function PipelinePage() {
     )
   }
 
+  const isSpecialView = isMatchesView || isNotesView || isResponsesView
+  const listItems = isMatchesView ? filteredMatches : filteredRequests
+  const listTitle = activeFilter === 'matches' ? 'Matches'
+    : activeFilter === 'notes' ? 'Notes'
+    : activeFilter === 'responses' ? 'Responses'
+    : STAGE_LABELS[activeFilter as RequestStage]
+
+  // ── Sidebar ─────────────────────────────────────────────────────────────────
+  const navClick = (filter: ViewFilter) => { setActiveFilter(filter); setSidebarOpen(false) }
+
   const sidebarContent = (
     <div className="flex flex-col h-full">
-      {/* Sidebar header */}
+      {/* Header */}
       <div className="px-4 py-3 border-b border-slate-100">
         <Link
           href="/dashboard/employer"
@@ -461,56 +325,78 @@ export default function PipelinePage() {
           <span className="text-[10px] bg-slate-100 text-slate-500 font-semibold px-1.5 py-0.5 rounded">
             {WORK_ARRANGEMENT_LABELS[find.work_arrangement]}
           </span>
+          {find.status === 'draft' && (
+            <span className="text-[10px] bg-amber-100 text-amber-700 font-semibold px-1.5 py-0.5 rounded">Draft</span>
+          )}
         </div>
+        <p className="text-[10px] text-slate-400 mt-1.5">Created {timeAgo(find.created_at)}</p>
+        {find.status === 'draft' && (
+          <button
+            onClick={handlePublish}
+            className="mt-2 w-full text-[10px] font-bold py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-colors"
+          >
+            Publish pipeline →
+          </button>
+        )}
       </div>
 
       {/* Nav */}
       <nav className="flex-1 overflow-y-auto p-2">
-        {/* All */}
         <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" /></svg>}
-          label="All Candidates"
-          count={requests.filter((r) => !r.archived).length}
-          active={activeFilter === 'all'}
-          onClick={() => { setActiveFilter('all'); setSidebarOpen(false) }}
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" /></svg>}
+          label="Matches"
+          count={matchesCount}
+          active={activeFilter === 'matches'}
+          onClick={() => navClick('matches')}
         />
 
-        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Stages</p>
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Pipeline stages</p>
 
+        {[
+          { filter: 'discovered', label: 'Discovered', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg> },
+          { filter: 'interested', label: 'Interested', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg> },
+          { filter: 'interview', label: 'Interview', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg> },
+          { filter: 'offer', label: 'Offer', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg> },
+          { filter: 'hired', label: 'Hired', icon: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg> },
+        ].map(({ filter, label, icon }) => (
+          <NavItem
+            key={filter}
+            icon={icon}
+            label={label}
+            count={stageCounts[filter] ?? 0}
+            active={activeFilter === filter}
+            onClick={() => navClick(filter as ViewFilter)}
+          />
+        ))}
+
+        {/* Rejected — red-tinted */}
+        <button
+          onClick={() => navClick('rejected')}
+          className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-xs font-medium transition-colors mb-0.5 ${
+            activeFilter === 'rejected' ? 'bg-red-500 text-white' : 'text-red-400 hover:bg-red-50'
+          }`}
+        >
+          <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" /></svg>
+          <span className="flex-1 text-left">Rejected</span>
+          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${activeFilter === 'rejected' ? 'bg-white/20 text-white' : 'bg-red-50 text-red-400'}`}>
+            {stageCounts['rejected'] ?? 0}
+          </span>
+        </button>
+
+        <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Insights</p>
         <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>}
-          label="Discovered"
-          count={stageCounts['discovered']}
-          active={activeFilter === 'discovered'}
-          onClick={() => { setActiveFilter('discovered'); setSidebarOpen(false) }}
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>}
+          label="Notes"
+          count={notesCount}
+          active={activeFilter === 'notes'}
+          onClick={() => navClick('notes')}
         />
         <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" /></svg>}
-          label="Interested"
-          count={stageCounts['interested']}
-          active={activeFilter === 'interested'}
-          onClick={() => { setActiveFilter('interested'); setSidebarOpen(false) }}
-        />
-        <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>}
-          label="Interview"
-          count={stageCounts['interview']}
-          active={activeFilter === 'interview'}
-          onClick={() => { setActiveFilter('interview'); setSidebarOpen(false) }}
-        />
-        <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>}
-          label="Offer"
-          count={stageCounts['offer']}
-          active={activeFilter === 'offer'}
-          onClick={() => { setActiveFilter('offer'); setSidebarOpen(false) }}
-        />
-        <NavItem
-          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z" /></svg>}
-          label="Hired"
-          count={stageCounts['hired']}
-          active={activeFilter === 'hired'}
-          onClick={() => { setActiveFilter('hired'); setSidebarOpen(false) }}
+          icon={<svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}><path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-3 3v-3z" /></svg>}
+          label="Responses"
+          count={responsesCount}
+          active={activeFilter === 'responses'}
+          onClick={() => navClick('responses')}
         />
 
         <p className="text-[9px] font-bold text-slate-300 uppercase tracking-widest px-2 mt-3 mb-1">Filter</p>
@@ -533,23 +419,54 @@ export default function PipelinePage() {
             <input type="checkbox" className="accent-indigo-600 w-3.5 h-3.5" checked={verifiedOnly} onChange={(e) => setVerifiedOnly(e.target.checked)} />
             <span className="text-[11px] text-slate-500 font-medium">Verified only</span>
           </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input type="checkbox" className="accent-slate-500 w-3.5 h-3.5" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
-            <span className="text-[11px] text-slate-500 font-medium">Show archived</span>
-          </label>
+          {!isMatchesView && (
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" className="accent-slate-500 w-3.5 h-3.5" checked={showArchived} onChange={(e) => setShowArchived(e.target.checked)} />
+              <span className="text-[11px] text-slate-500 font-medium">Show archived</span>
+            </label>
+          )}
         </div>
       </nav>
 
-      {/* Job settings button */}
-      <div className="p-2 border-t border-slate-100">
+      {/* Footer actions */}
+      <div className="p-2 border-t border-slate-100 space-y-1">
+        {/* Discover more */}
+        <button
+          onClick={handleDiscoverMore}
+          disabled={discoverLoading}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-indigo-600 hover:bg-indigo-50 transition-colors disabled:opacity-50"
+        >
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          {discoverLoading ? 'Searching…' : 'Discover more talent'}
+        </button>
+        {discoverResult !== null && (
+          <p className="text-[10px] text-center text-slate-400 pb-1">
+            {discoverResult > 0 ? `+${discoverResult} new candidates found` : 'No new candidates found'}
+          </p>
+        )}
+
+        {/* Job settings */}
         <button
           onClick={() => setSettingsOpen(true)}
           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition-colors"
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
           Job settings
+        </button>
+
+        {/* Delete pipeline */}
+        <button
+          onClick={() => { setDeleteConfirmText(''); setDeleteModalOpen(true) }}
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+        >
+          <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+          Delete pipeline
         </button>
       </div>
     </div>
@@ -574,7 +491,7 @@ export default function PipelinePage() {
       )}
 
       {/* Main area */}
-      <div className="flex-1 md:pl-60 flex flex-col min-h-screen">
+      <div className="flex-1 md:pl-60">
 
         {/* Mobile top bar */}
         <div className="md:hidden flex items-center gap-3 bg-white border-b border-slate-200 px-4 h-14 sticky top-0 z-40">
@@ -586,92 +503,259 @@ export default function PipelinePage() {
           <span className="font-bold text-slate-900 text-sm truncate">{find.role_title}</span>
         </div>
 
-        <div className={`flex flex-1 ${selectedPanel ? 'overflow-hidden' : ''}`}>
+        <div className="p-5 sm:p-6">
 
-          {/* Candidate list */}
-          <div className={`flex-1 min-w-0 ${selectedPanel ? 'hidden md:block md:flex-[2]' : ''}`}>
-            <div className="p-5 sm:p-6">
+          {/* List header */}
+          <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
+            <div>
+              <h1 className="font-bold text-slate-900 text-base">{listTitle}</h1>
+              {!isNotesView && !isResponsesView && (
+                <p className="text-sm text-slate-500 mt-0.5">{listItems.length} candidates</p>
+              )}
+            </div>
+            {!isSpecialView && activeFilter !== 'rejected' && (
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              >
+                <option value="ai_score">Sort: AI Score</option>
+                <option value="star_rating">Sort: Star Rating</option>
+                <option value="date">Sort: Date Added</option>
+                <option value="name">Sort: Name</option>
+              </select>
+            )}
+          </div>
 
-              {/* List header */}
-              <div className="flex items-center justify-between gap-3 mb-5 flex-wrap">
-                <div>
-                  <h1 className="font-bold text-slate-900 text-base">
-                    {activeFilter === 'all' ? 'All Candidates' : STAGE_LABELS[activeFilter as RequestStage]}
-                  </h1>
-                  <p className="text-sm text-slate-500 mt-0.5">{filteredRequests.length} candidates</p>
-                </div>
-                <select
-                  value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                  className="text-xs border border-slate-200 rounded-xl px-3 py-2 bg-white text-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-                >
-                  <option value="ai_score">Sort: AI Score</option>
-                  <option value="star_rating">Sort: Star Rating</option>
-                  <option value="date">Sort: Date Added</option>
-                  <option value="name">Sort: Name</option>
-                </select>
+          {/* Notes view */}
+          {isNotesView && (() => {
+            const tfcNotes = tfc.filter((c) => c.notes?.trim()).map((c) => ({
+              name: c.profiles?.user_profiles?.full_name ?? 'Talent',
+              avatar: c.profiles?.user_profiles?.avatar_url,
+              role: c.profiles?.role_title ?? '',
+              note: c.notes ?? '',
+              profileId: c.profile_id,
+            }))
+            const reqNotes = requests.filter((r) => r.notes?.trim()).map((r) => ({
+              name: r.profiles?.user_profiles?.full_name ?? 'Talent',
+              avatar: r.profiles?.user_profiles?.avatar_url,
+              role: r.profiles?.role_title ?? '',
+              note: r.notes ?? '',
+              profileId: r.profile_id,
+            }))
+            const allNotes = [...reqNotes, ...tfcNotes.filter((n) => !reqNotes.find((rn) => rn.profileId === n.profileId))]
+            return allNotes.length === 0 ? (
+              <div className="card p-12 text-center">
+                <p className="font-semibold text-slate-700 mb-2">No notes yet</p>
+                <p className="text-sm text-slate-500">Add notes to candidates in the pipeline stages.</p>
               </div>
+            ) : (
+              <div className="space-y-3">
+                {allNotes.map((n) => (
+                  <div key={n.profileId} className="card p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden">
+                        {n.avatar ? <img src={n.avatar} alt="" className="w-full h-full object-cover" /> : n.name.charAt(0)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-sm font-semibold text-slate-900 truncate">{n.name}</p>
+                        <p className="text-xs text-slate-400 truncate">{n.role}</p>
+                      </div>
+                      <Link href={`/profile/${n.profileId}`} target="_blank" className="ml-auto text-xs text-indigo-600 hover:underline flex-shrink-0">View →</Link>
+                    </div>
+                    <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100 leading-relaxed">{n.note}</p>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
 
+          {/* Responses view */}
+          {isResponsesView && (() => {
+            const questions = (find.custom_questions ?? []) as string[]
+            const answered = requests.filter((r) => r.question_answers && Object.keys(r.question_answers as Record<string, string>).length > 0)
+            return questions.length === 0 ? (
+              <div className="card p-12 text-center">
+                <p className="font-semibold text-slate-700 mb-2">No screening questions</p>
+                <p className="text-sm text-slate-500">Add questions when creating your next pipeline.</p>
+              </div>
+            ) : answered.length === 0 ? (
+              <div className="card p-12 text-center">
+                <p className="font-semibold text-slate-700 mb-2">No responses yet</p>
+                <p className="text-sm text-slate-500">Candidate responses will appear here once they express interest.</p>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {questions.map((q, qi) => (
+                  <div key={qi} className="card p-4">
+                    <p className="text-xs font-bold text-slate-400 uppercase tracking-wide mb-1">Q{qi + 1}</p>
+                    <p className="text-sm font-semibold text-slate-800 mb-3 leading-snug">{q}</p>
+                    <div className="space-y-3">
+                      {answered.map((r) => {
+                        const ans = (r.question_answers as Record<string, string>)[`q${qi}`]
+                        if (!ans) return null
+                        const name = r.profiles?.user_profiles?.full_name ?? 'Talent'
+                        const avatar = r.profiles?.user_profiles?.avatar_url
+                        return (
+                          <div key={r.id} className="flex gap-3">
+                            <div className="w-7 h-7 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold flex-shrink-0 overflow-hidden mt-0.5">
+                              {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : name.charAt(0)}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-semibold text-slate-700 mb-1">{name}</p>
+                              <p className="text-sm text-slate-600 bg-slate-50 rounded-xl px-3 py-2 border border-slate-100 leading-relaxed break-words">{ans}</p>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          })()}
+
+          {/* Uncontacted view */}
+          {isMatchesView && (
+            <>
+              {selectedUncontacted.size > 0 && (
+                <div className="flex items-center gap-3 mb-4 px-4 py-3 bg-indigo-50 rounded-xl border border-indigo-200">
+                  <span className="text-sm font-semibold text-indigo-700 flex-1">
+                    {selectedUncontacted.size} selected
+                  </span>
+                  <button
+                    onClick={() => handleInvite(Array.from(selectedUncontacted))}
+                    disabled={bulkInviting}
+                    className="btn-primary text-xs py-1.5 disabled:opacity-50"
+                  >
+                    {bulkInviting ? 'Inviting…' : 'Invite Selected'}
+                  </button>
+                </div>
+              )}
+
+              {filteredMatches.length > 0 && (
+                <label className="flex items-center gap-2 text-xs text-slate-500 mb-3 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={selectedUncontacted.size === filteredMatches.length}
+                    onChange={(e) =>
+                      setSelectedUncontacted(e.target.checked
+                        ? new Set(filteredMatches.map((c) => c.profile_id))
+                        : new Set())
+                    }
+                    className="accent-indigo-600 w-4 h-4"
+                  />
+                  Select all
+                </label>
+              )}
+
+              {filteredMatches.length === 0 ? (
+                <div className="card p-10 text-center">
+                  <div className="w-14 h-14 bg-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-7 h-7 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <p className="font-bold text-slate-800 mb-1">No matched candidates</p>
+                  <p className="text-sm text-slate-500 max-w-xs mx-auto leading-relaxed">
+                    No talent profiles matched this pipeline&apos;s requirements yet, or all matches have already been invited.
+                  </p>
+                  <div className="mt-4 text-xs text-slate-400 space-y-1">
+                    <p>Try: broaden skills requirements · lower experience minimum · widen salary range</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {filteredMatches.map((candidate) => (
+                    <UncontactedRow
+                      key={candidate.profile_id}
+                      candidate={candidate}
+                      expanded={expandedProfileId === candidate.profile_id}
+                      onExpand={() => toggleExpanded(candidate.profile_id)}
+                      selected={selectedUncontacted.has(candidate.profile_id)}
+                      onSelect={() => setSelectedUncontacted((prev) => {
+                        const next = new Set(prev)
+                        if (next.has(candidate.profile_id)) next.delete(candidate.profile_id)
+                        else next.add(candidate.profile_id)
+                        return next
+                      })}
+                      onInvite={() => handleInvite([candidate.profile_id])}
+                      inviting={inviting === candidate.profile_id}
+                      findId={id}
+                      onTfcUpdate={updateTfc}
+                    />
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Contacted (stage) view */}
+          {!isSpecialView && (
+            <>
               {filteredRequests.length === 0 ? (
                 <div className="card p-12 text-center">
                   <p className="font-semibold text-slate-700 mb-2">No candidates here yet</p>
                   <p className="text-sm text-slate-500">
-                    {activeFilter !== 'all'
-                      ? 'No candidates in this stage. Try selecting a different stage.'
-                      : 'Candidates will appear here after your Talent Find processes.'}
+                    No candidates in this stage.
                   </p>
                 </div>
               ) : (
                 <div className="space-y-2">
                   {filteredRequests.map((req) => (
-                    <CandidateRow
+                    <ContactedRow
                       key={req.id}
                       request={req}
-                      candidateScore={candidateScores[req.profile_id]}
-                      selected={selectedPanel === req.id}
-                      onSelect={() => setSelectedPanel(selectedPanel === req.id ? null : req.id)}
+                      tfc={tfcMap[req.profile_id]}
+                      find={find}
+                      expanded={expandedProfileId === req.profile_id}
+                      onExpand={() => toggleExpanded(req.profile_id)}
+                      onStageChange={handleStageChange}
+                      onArchive={handleArchive}
+                      onUnarchive={handleUnarchive}
+                      onReject={handleReject}
+                      findId={id}
+                      onTfcUpdate={updateTfc}
                     />
                   ))}
                 </div>
               )}
-            </div>
-          </div>
-
-          {/* Right detail panel */}
-          {selectedRequest && find && (
-            <>
-              {/* Mobile full-screen */}
-              <div className="md:hidden fixed inset-0 z-[70] bg-white overflow-y-auto">
-                <CandidatePanel
-                  request={selectedRequest}
-                  find={find}
-                  candidateScore={candidateScores[selectedRequest.profile_id]}
-                  onClose={() => setSelectedPanel(null)}
-                  onStageChange={handleStageChange}
-                  onArchive={handleArchive}
-                  onStarChange={handleStarChange}
-                />
-              </div>
-
-              {/* Desktop slide-over */}
-              <div className="hidden md:flex flex-col w-80 xl:w-96 bg-white border-l border-slate-200 sticky top-0 h-screen overflow-hidden">
-                <CandidatePanel
-                  request={selectedRequest}
-                  find={find}
-                  candidateScore={candidateScores[selectedRequest.profile_id]}
-                  onClose={() => setSelectedPanel(null)}
-                  onStageChange={handleStageChange}
-                  onArchive={handleArchive}
-                  onStarChange={handleStarChange}
-                />
-              </div>
             </>
           )}
         </div>
       </div>
 
+      {/* Delete confirmation modal */}
+      {deleteModalOpen && find && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-black/60">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h3 className="font-bold text-slate-900 text-lg mb-1">Delete pipeline?</h3>
+            <p className="text-sm text-slate-500 mb-4 leading-relaxed">This will permanently delete <strong>{find.role_title}</strong> and all associated candidates and requests. This cannot be undone.</p>
+            <p className="text-xs font-semibold text-slate-600 mb-2">Type the pipeline name to confirm:</p>
+            <p className="text-xs text-slate-400 font-mono bg-slate-50 px-2 py-1.5 rounded mb-2 select-all">{find.role_title}</p>
+            <input
+              className="input-base w-full mb-4 text-sm"
+              placeholder="Type pipeline name…"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setDeleteModalOpen(false)} className="btn-secondary flex-1">Cancel</button>
+              <button
+                onClick={handleDelete}
+                disabled={deleteConfirmText !== find.role_title || deleting}
+                className="flex-1 py-2.5 px-4 rounded-xl bg-red-600 text-white text-sm font-bold hover:bg-red-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {deleting ? 'Deleting…' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Job settings modal */}
-      {settingsOpen && find && (
+      {settingsOpen && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSettingsOpen(false)} />
           <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
@@ -685,7 +769,33 @@ export default function PipelinePage() {
               </button>
             </div>
             <div className="overflow-y-auto p-5 space-y-4 flex-1">
-              {find.salary_min || find.salary_max ? (
+              {/* Locked fields notice */}
+              <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2.5">
+                <svg className="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+                </svg>
+                <p className="text-xs text-amber-700 leading-relaxed">Some fields are locked after publishing to maintain fairness for candidates who already received this pipeline.</p>
+              </div>
+
+              {/* Locked: Role title */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Role Title</p>
+                  <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <p className="text-sm font-semibold text-slate-700 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100">{find.role_title}</p>
+              </div>
+
+              {/* Locked: Job description */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <p className="text-xs font-semibold text-slate-400 uppercase tracking-wide">Job Description</p>
+                  <svg className="w-3 h-3 text-slate-300" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                </div>
+                <p className="text-sm text-slate-700 bg-slate-50 rounded-xl px-3 py-2.5 border border-slate-100 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">{find.description}</p>
+              </div>
+
+              {(find.salary_min || find.salary_max) ? (
                 <div className="flex gap-4 text-sm">
                   <div><span className="text-slate-400 text-xs font-medium">Salary</span><p className="font-semibold text-slate-800">${(find.salary_min ?? 0).toLocaleString()} – ${(find.salary_max ?? 0).toLocaleString()}</p></div>
                   {(find.min_experience || find.max_experience) && (
@@ -701,25 +811,13 @@ export default function PipelinePage() {
                   </div>
                 </div>
               )}
+
+              {/* Editable: Requirements */}
               <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Job Description</label>
-                <textarea
-                  rows={6}
-                  className="input-base w-full resize-none text-sm"
-                  value={editDesc}
-                  onChange={(e) => setEditDesc(e.target.value)}
-                />
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Requirements <span className="text-slate-300 font-normal normal-case">(editable)</span></label>
+                <textarea rows={4} className="input-base w-full resize-none text-sm" placeholder="Additional requirements…" value={editReqs} onChange={(e) => setEditReqs(e.target.value)} />
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wide block mb-1.5">Requirements</label>
-                <textarea
-                  rows={4}
-                  className="input-base w-full resize-none text-sm"
-                  placeholder="Additional requirements, process details…"
-                  value={editReqs}
-                  onChange={(e) => setEditReqs(e.target.value)}
-                />
-              </div>
+
               {(find.custom_questions as string[])?.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1.5">Screening Questions</p>

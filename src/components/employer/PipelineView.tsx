@@ -14,6 +14,7 @@ const stageAccent: Record<RequestStage, string> = {
   interview: 'bg-violet-500',
   offer: 'bg-amber-500',
   hired: 'bg-emerald-500',
+  rejected: 'bg-red-400',
 }
 
 const stageHeaderColors: Record<RequestStage, string> = {
@@ -22,6 +23,7 @@ const stageHeaderColors: Record<RequestStage, string> = {
   interview: 'bg-violet-100 text-violet-700',
   offer: 'bg-amber-100 text-amber-700',
   hired: 'bg-emerald-100 text-emerald-700',
+  rejected: 'bg-red-100 text-red-700',
 }
 
 interface PipelineViewProps {

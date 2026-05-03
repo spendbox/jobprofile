@@ -2,19 +2,194 @@
 
 export const dynamic = 'force-dynamic'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { createClient } from '@/lib/supabase/client'
 import { useAuth } from '@/contexts/AuthContext'
 import { Avatar } from '@/components/ui/Avatar'
 import type { TalentFind } from '@/types'
-import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS } from '@/types'
+import { EMPLOYMENT_TYPE_LABELS, WORK_ARRANGEMENT_LABELS, TIMEZONES } from '@/types'
+import { COUNTRIES } from '@/lib/countries'
+import { timeAgo } from '@/lib/utils'
 
 interface FindStats {
   discovered: number
   interested: number
   pipeline: number
+}
+
+function CompanySetupModal({ onComplete }: { onComplete: () => void }) {
+  const supabase = createClient()
+  const { userProfile, refreshProfile } = useAuth()
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  const [companyName, setCompanyName] = useState(userProfile?.company_name ?? '')
+  const [companyWebsite, setCompanyWebsite] = useState(userProfile?.company_website ?? '')
+  const [companyContactEmail, setCompanyContactEmail] = useState(userProfile?.company_contact_email ?? '')
+  const [companyDescription, setCompanyDescription] = useState(userProfile?.company_description ?? '')
+  const [companyHqCountry, setCompanyHqCountry] = useState(userProfile?.company_hq_country ?? '')
+  const [companyHqState, setCompanyHqState] = useState(userProfile?.company_hq_state ?? '')
+  const [companyTimezone, setCompanyTimezone] = useState(userProfile?.company_timezone ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(userProfile?.avatar_url ?? '')
+  const [uploading, setUploading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || !userProfile) return
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
+    if (!allowed.includes(file.type)) { setError('Please upload a JPG, PNG, WEBP, or GIF.'); return }
+    if (file.size > 5 * 1024 * 1024) { setError('Image must be under 5 MB.'); return }
+    setUploading(true)
+    setError('')
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { setError('Not authenticated.'); return }
+      const ext = file.name.split('.').pop()
+      const path = `${userProfile.id}/avatar_${Date.now()}.${ext}`
+      const uploadUrl = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/avatars/${path}`
+      await new Promise<void>((resolve, reject) => {
+        const xhr = new XMLHttpRequest()
+        xhr.open('POST', uploadUrl)
+        xhr.setRequestHeader('Authorization', `Bearer ${session.access_token}`)
+        xhr.setRequestHeader('Content-Type', file.type)
+        xhr.setRequestHeader('x-upsert', 'true')
+        xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(`Upload failed (${xhr.status})`))
+        xhr.onerror = () => reject(new Error('Network error'))
+        xhr.send(file)
+      })
+      const { data: pubData } = supabase.storage.from('avatars').getPublicUrl(path)
+      setAvatarUrl(pubData.publicUrl)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed')
+    } finally {
+      setUploading(false)
+      if (fileRef.current) fileRef.current.value = ''
+    }
+  }
+
+  const handleSave = async () => {
+    if (!companyContactEmail.trim() || !companyDescription.trim() || !companyHqCountry || !companyHqState.trim()) {
+      setError('Contact email, description, HQ country, and HQ state/region are required.')
+      return
+    }
+    if (!userProfile) return
+    setSaving(true)
+    setError('')
+    const { error: err } = await supabase.from('user_profiles').update({
+      company_name: companyName.trim() || null,
+      company_website: companyWebsite.trim() || null,
+      company_contact_email: companyContactEmail.trim(),
+      company_description: companyDescription.trim(),
+      company_hq_country: companyHqCountry || null,
+      company_hq_state: companyHqState.trim() || null,
+      company_timezone: companyTimezone || null,
+      company_profile_complete: true,
+      avatar_url: avatarUrl || null,
+    }).eq('id', userProfile.id)
+    if (err) {
+      setError(err.message)
+      setSaving(false)
+      return
+    }
+    await refreshProfile()
+    onComplete()
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+        <div className="p-6 border-b border-slate-100">
+          <h2 className="text-xl font-black text-slate-900">Set up your company profile</h2>
+          <p className="text-sm text-slate-500 mt-1">Complete your company details before creating your first pipeline.</p>
+        </div>
+
+        <div className="p-6 space-y-5">
+          {/* Logo */}
+          <div>
+            <p className="section-label mb-3">Company Logo</p>
+            <div className="flex items-center gap-4">
+              <Avatar name={companyName || userProfile?.full_name || ''} src={avatarUrl || undefined} size="lg" />
+              <div>
+                <input ref={fileRef} type="file" accept=".jpg,.jpeg,.png,.webp,.gif" className="hidden" onChange={handleLogoUpload} />
+                <button onClick={() => fileRef.current?.click()} disabled={uploading} className="btn-secondary text-sm">
+                  {uploading ? 'Uploading…' : 'Upload Logo'}
+                </button>
+                <p className="text-xs text-slate-400 mt-1">JPG, PNG, WEBP or GIF · Max 5 MB</p>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">Company Name</label>
+            <input type="text" className="input-base" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Your company or organisation" />
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">Company Website</label>
+            <input type="url" className="input-base" value={companyWebsite} onChange={(e) => setCompanyWebsite(e.target.value)} placeholder="https://yourcompany.com" />
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">
+              Contact Email <span className="text-red-400">*</span>
+            </label>
+            <input type="email" className="input-base" value={companyContactEmail} onChange={(e) => setCompanyContactEmail(e.target.value)} placeholder="hiring@yourcompany.com" />
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">
+              Company Description <span className="text-red-400">*</span>
+            </label>
+            <textarea
+              className="input-base resize-none"
+              rows={3}
+              maxLength={500}
+              value={companyDescription}
+              onChange={(e) => setCompanyDescription(e.target.value)}
+              placeholder="Brief description of your company, culture, and mission…"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="section-label mb-1.5 block">
+                HQ Country <span className="text-red-400">*</span>
+              </label>
+              <select className="input-base" value={companyHqCountry} onChange={(e) => setCompanyHqCountry(e.target.value)}>
+                <option value="">Select country</option>
+                {COUNTRIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="section-label mb-1.5 block">
+                HQ State / Region <span className="text-red-400">*</span>
+              </label>
+              <input type="text" className="input-base" value={companyHqState} onChange={(e) => setCompanyHqState(e.target.value)} placeholder="e.g. California" />
+            </div>
+          </div>
+
+          <div>
+            <label className="section-label mb-1.5 block">Timezone</label>
+            <select className="input-base" value={companyTimezone} onChange={(e) => setCompanyTimezone(e.target.value)}>
+              <option value="">Select timezone</option>
+              {TIMEZONES.map((tz) => <option key={tz} value={tz}>{tz}</option>)}
+            </select>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 text-sm rounded-xl px-4 py-3">{error}</div>
+          )}
+
+          <button onClick={handleSave} disabled={saving} className="btn-primary w-full">
+            {saving ? 'Saving…' : 'Save & Continue'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 export default function EmployerDashboard() {
@@ -28,6 +203,7 @@ export default function EmployerDashboard() {
   const [showArchived, setShowArchived] = useState(false)
   const [archiving, setArchiving] = useState<string | null>(null)
   const [globalStats, setGlobalStats] = useState({ activeFinds: 0, totalCandidates: 0, interested: 0, hired: 0 })
+  const [showCompanySetup, setShowCompanySetup] = useState(false)
 
   const loadData = useCallback(async () => {
     const findsRes = await fetch('/api/talent-finds?status=all')
@@ -109,6 +285,14 @@ export default function EmployerDashboard() {
     setArchiving(null)
   }
 
+  const handleCreatePipeline = () => {
+    if (!userProfile?.company_profile_complete) {
+      setShowCompanySetup(true)
+      return
+    }
+    router.push('/dashboard/employer/new-find')
+  }
+
   if (loadingAuth || loading) {
     return (
       <div className="page-container flex items-center justify-center min-h-64">
@@ -119,15 +303,45 @@ export default function EmployerDashboard() {
 
   const activeFinds = finds.filter((f) => f.status === 'active')
   const archivedFinds = finds.filter((f) => f.status === 'archived')
+  const draftFinds = finds.filter((f) => f.status === 'draft')
   const visibleFinds = showArchived ? archivedFinds : activeFinds
+
+  const profileIncomplete = !userProfile?.company_profile_complete
 
   return (
     <div className="page-container">
+      {showCompanySetup && (
+        <CompanySetupModal onComplete={() => {
+          setShowCompanySetup(false)
+          router.push('/dashboard/employer/new-find')
+        }} />
+      )}
+
+      {/* Incomplete profile banner */}
+      {profileIncomplete && finds.length > 0 && (
+        <div className="mb-5 flex items-center justify-between gap-4 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3">
+          <div className="flex items-center gap-2">
+            <svg className="w-4 h-4 text-amber-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p className="text-sm text-amber-800">Complete your company profile so talent know who you are.</p>
+          </div>
+          <Link href="/settings" className="text-xs font-semibold text-amber-700 hover:text-amber-900 flex-shrink-0">
+            Complete now →
+          </Link>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div className="flex items-center gap-4">
-          {userProfile && <Avatar name={userProfile.full_name} size="lg" />}
+          {userProfile && (
+            <Avatar
+              name={userProfile.company_name ?? userProfile.full_name}
+              src={userProfile.avatar_url ?? undefined}
+              size="lg"
+            />
+          )}
           <div>
             <p className="section-label mb-0.5">Employer Dashboard</p>
             <h1 className="text-xl font-bold text-slate-900">
@@ -136,12 +350,12 @@ export default function EmployerDashboard() {
             <p className="text-sm text-slate-500 mt-0.5">Manage your talent pipeline</p>
           </div>
         </div>
-        <Link href="/dashboard/employer/new-find" className="btn-primary self-start sm:self-auto">
+        <button onClick={handleCreatePipeline} className="btn-primary self-start sm:self-auto flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
           </svg>
-          New Talent Find
-        </Link>
+          Create Pipeline
+        </button>
       </div>
 
       {/* Stats strip */}
@@ -158,6 +372,33 @@ export default function EmployerDashboard() {
           </div>
         ))}
       </div>
+
+      {/* Draft finds strip */}
+      {draftFinds.length > 0 && (
+        <div className="mb-6">
+          <h2 className="font-bold text-slate-900 text-base mb-3">
+            Draft Pipelines <span className="text-slate-400 font-normal text-sm">({draftFinds.length})</span>
+          </h2>
+          <div className="space-y-3">
+            {draftFinds.map((find) => (
+              <div key={find.id} className="card p-4 sm:p-5 flex items-center justify-between gap-4 border-dashed border-slate-200">
+                <div className="flex-1 min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-semibold text-slate-700 text-sm">{find.role_title}</span>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-semibold bg-slate-100 text-slate-500">Draft</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-0.5">
+                    {EMPLOYMENT_TYPE_LABELS[find.employment_type]} · {WORK_ARRANGEMENT_LABELS[find.work_arrangement]}
+                  </p>
+                </div>
+                <Link href={`/dashboard/employer/pipeline/${find.id}`} className="btn-secondary text-xs py-1.5 px-3 flex-shrink-0">
+                  Open →
+                </Link>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* List header */}
       <div className="flex items-center justify-between mb-4">
@@ -196,9 +437,9 @@ export default function EmployerDashboard() {
               <p className="text-sm text-slate-500 mb-6">
                 Create a Talent Find to start discovering and reaching out to candidates.
               </p>
-              <Link href="/dashboard/employer/new-find" className="btn-primary mx-auto inline-flex">
+              <button onClick={handleCreatePipeline} className="btn-primary mx-auto inline-flex">
                 Create your first Talent Find
-              </Link>
+              </button>
             </>
           )}
         </div>
@@ -219,6 +460,7 @@ export default function EmployerDashboard() {
                       }`}>
                         {find.status === 'active' ? 'Active' : 'Archived'}
                       </span>
+                      <span className="text-xs text-slate-400">Created {timeAgo(find.created_at)}</span>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mb-4">
