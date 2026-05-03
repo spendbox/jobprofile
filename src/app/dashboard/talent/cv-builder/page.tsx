@@ -39,6 +39,7 @@ interface ChatMessage {
   role: 'user' | 'assistant'
   content: string
   id: string
+  fetchedUrls?: string[]
 }
 
 interface ChatResponse {
@@ -47,7 +48,10 @@ interface ChatResponse {
   isComplete: boolean
   completionPercent: number
   currentSection: string
+  fetchedUrls?: string[]
 }
+
+const URL_DETECT_RE = /https?:\/\/[^\s"'<>]+/gi
 
 const SECTION_LABELS: Record<string, string> = {
   targetRole: 'Target Role',
@@ -124,6 +128,7 @@ export default function CVBuilderPage() {
   const [uploadError, setUploadError] = useState('')
   const [showMobilePreview, setShowMobilePreview] = useState(false)
   const [initialized, setInitialized] = useState(false)
+  const [pendingUrls, setPendingUrls] = useState<string[]>([])
 
   // ── Auth guard ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -235,10 +240,12 @@ export default function CVBuilderPage() {
     const trimmed = text.trim()
     if (!trimmed || thinking) return
 
+    const detectedUrls = Array.from(new Set(trimmed.match(URL_DETECT_RE) ?? []))
     const userMsg: ChatMessage = { role: 'user', content: trimmed, id: crypto.randomUUID() }
     setMessages((prev) => [...prev, userMsg])
     setInput('')
     setThinking(true)
+    if (detectedUrls.length) setPendingUrls(detectedUrls)
 
     const apiMessages = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }))
 
@@ -252,9 +259,15 @@ export default function CVBuilderPage() {
 
       const data: ChatResponse = await res.json()
       setThinking(false)
+      setPendingUrls([])
 
       if (data.reply) {
-        setMessages((prev) => [...prev, { role: 'assistant', content: data.reply, id: crypto.randomUUID() }])
+        setMessages((prev) => [...prev, {
+          role: 'assistant',
+          content: data.reply,
+          id: crypto.randomUUID(),
+          fetchedUrls: data.fetchedUrls?.length ? data.fetchedUrls : undefined,
+        }])
         if (data.cvData) setCvData(data.cvData)
         if (data.currentSection) setCurrentSection(data.currentSection)
         if (typeof data.completionPercent === 'number') setCompletionPercent(data.completionPercent)
@@ -262,6 +275,7 @@ export default function CVBuilderPage() {
       }
     } catch {
       setThinking(false)
+      setPendingUrls([])
       setMessages((prev) => [...prev, {
         role: 'assistant',
         content: "Sorry, something went wrong. Please try again.",
@@ -442,18 +456,45 @@ export default function CVBuilderPage() {
                     </svg>
                   </div>
                 )}
-                <div
-                  className={`max-w-[80%] sm:max-w-[70%] px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
-                    msg.role === 'assistant'
-                      ? 'bg-white border border-slate-200 rounded-2xl rounded-bl-sm text-slate-700'
-                      : 'bg-slate-900 text-white rounded-2xl rounded-br-sm'
-                  }`}
-                >
-                  {msg.content}
+                <div className="flex flex-col gap-1 max-w-[80%] sm:max-w-[70%]">
+                  <div
+                    className={`px-4 py-3 text-sm leading-relaxed whitespace-pre-wrap ${
+                      msg.role === 'assistant'
+                        ? 'bg-white border border-slate-200 rounded-2xl rounded-bl-sm text-slate-700'
+                        : 'bg-slate-900 text-white rounded-2xl rounded-br-sm'
+                    }`}
+                  >
+                    {msg.content}
+                  </div>
+                  {msg.fetchedUrls?.map((url) => {
+                    let domain = url
+                    try { domain = new URL(url).hostname.replace(/^www\./, '') } catch { /* keep full url */ }
+                    return (
+                      <div key={url} className="flex items-center gap-1.5 px-2 py-1 bg-emerald-50 border border-emerald-200 rounded-lg w-fit">
+                        <svg className="w-3 h-3 text-emerald-600 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                        <span className="text-[11px] text-emerald-700 font-medium truncate max-w-[200px]">Read: {domain}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             ))}
 
+            {thinking && pendingUrls.length > 0 && (
+              <div className="flex items-center gap-2 mb-2 ml-9">
+                <svg className="w-3.5 h-3.5 text-slate-400 animate-spin flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                </svg>
+                <span className="text-[11px] text-slate-400">
+                  Reading {pendingUrls.length === 1
+                    ? (() => { try { return new URL(pendingUrls[0]).hostname.replace(/^www\./, '') } catch { return 'page' } })()
+                    : `${pendingUrls.length} pages`}…
+                </span>
+              </div>
+            )}
             {thinking && <TypingIndicator />}
             <div ref={chatEndRef} />
           </div>
@@ -505,7 +546,7 @@ export default function CVBuilderPage() {
                   e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`
                 }}
                 onKeyDown={handleKeyDown}
-                placeholder={thinking ? 'AI is typing…' : 'Type your answer… (Enter to send)'}
+                placeholder={thinking ? 'AI is typing…' : 'Type your answer or paste a URL to import from… (Enter to send)'}
                 disabled={thinking}
                 className="flex-1 resize-none bg-slate-100 rounded-2xl px-4 py-2.5 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all disabled:opacity-50 min-h-[40px] max-h-[120px]"
                 style={{ height: '40px' }}
@@ -523,7 +564,7 @@ export default function CVBuilderPage() {
               </button>
             </div>
             <p className="text-[10px] text-slate-400 mt-1.5 px-1">
-              Shift+Enter for new line · Upload your existing CV to import it
+              Shift+Enter for new line · Paste a URL (LinkedIn, GitHub, portfolio) to import · Upload CV via paperclip
             </p>
           </div>
         </div>
