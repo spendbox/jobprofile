@@ -158,8 +158,8 @@ export default function LandingPage() {
             African talent, ready for global work
           </span>
           <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white leading-[1.08] tracking-tight mb-5">
-            Your skills.<br />
-            <span className="text-slate-400">Employers come to you.</span>
+            Let Employers<br />
+            <span className="text-slate-400">Find You.</span>
           </h1>
           <p className="text-base sm:text-lg text-slate-400 mb-9 max-w-xl mx-auto leading-relaxed">
             Build a professional profile, get verified, and let global companies
