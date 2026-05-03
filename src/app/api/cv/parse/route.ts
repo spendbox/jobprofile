@@ -2,8 +2,8 @@ export const dynamic = 'force-dynamic'
 
 import { NextRequest, NextResponse } from 'next/server'
 import OpenAI from 'openai'
-import { Worker as NodeWorker } from 'worker_threads'
 import path from 'path'
+import { pathToFileURL } from 'url'
 
 const SYSTEM_PROMPT = `You are a CV/resume parser. Extract structured information and return ONLY valid JSON with this exact shape:
 {
@@ -21,67 +21,37 @@ Rules:
 - All values must be strings or arrays of strings. No nulls.
 - If a field has no data, use an empty array [] or empty string "".`
 
-// Bridges worker_threads.Worker (Node EventEmitter) to the browser Worker interface
-// that pdfjs-dist's TypeScript types expect (addEventListener / removeEventListener).
-function makeNodeWorker(workerPath: string): { port: Worker; terminate: () => Promise<number> } {
-  const nodeWorker = new NodeWorker(workerPath)
-  const listeners = new Map<string, Set<(e: MessageEvent) => void>>()
-
-  nodeWorker.on('message', (data) => {
-    listeners.get('message')?.forEach((fn) => fn({ data } as MessageEvent))
-  })
-
-  const port = {
-    postMessage(msg: unknown, transfer?: unknown[]) {
-      nodeWorker.postMessage(msg, transfer as never)
-    },
-    addEventListener(type: string, handler: EventListenerOrEventListenerObject) {
-      const fn = typeof handler === 'function' ? handler : (e: Event) => handler.handleEvent(e)
-      if (!listeners.has(type)) listeners.set(type, new Set())
-      listeners.get(type)!.add(fn as (e: MessageEvent) => void)
-    },
-    removeEventListener(type: string, handler: EventListenerOrEventListenerObject) {
-      const fn = typeof handler === 'function' ? handler : (e: Event) => handler.handleEvent(e)
-      listeners.get(type)?.delete(fn as (e: MessageEvent) => void)
-    },
-    dispatchEvent: () => false,
-    onerror: null,
-    onmessage: null,
-    onmessageerror: null,
-    terminate() { return nodeWorker.terminate() },
-  } as unknown as Worker
-
-  return { port, terminate: () => nodeWorker.terminate() }
-}
+// pdfjs-dist v5 validates workerPort with `instanceof Worker`, which fails in Node.js
+// (no global Worker). Instead, point workerSrc at the worker file so pdfjs falls
+// through to its built-in fake-worker (in-process) mode automatically.
+let pdfjsInitialised = false
 
 async function extractPdfText(buffer: Buffer): Promise<string> {
   const pdfjsLib = await import('pdfjs-dist/legacy/build/pdf.mjs')
 
-  const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
-  const { port, terminate } = makeNodeWorker(workerPath)
-  pdfjsLib.GlobalWorkerOptions.workerPort = port
-
-  try {
-    const doc = await pdfjsLib.getDocument({
-      data: new Uint8Array(buffer),
-      useSystemFonts: true,
-      disableFontFace: true,
-    }).promise
-
-    const pages: string[] = []
-    for (let p = 1; p <= doc.numPages; p++) {
-      const page = await doc.getPage(p)
-      const content = await page.getTextContent()
-      pages.push(
-        content.items
-          .map((item) => ('str' in item ? (item as { str: string }).str : ''))
-          .join(' ')
-      )
-    }
-    return pages.join('\n')
-  } finally {
-    await terminate()
+  if (!pdfjsInitialised) {
+    const workerPath = path.join(process.cwd(), 'node_modules/pdfjs-dist/legacy/build/pdf.worker.mjs')
+    pdfjsLib.GlobalWorkerOptions.workerSrc = pathToFileURL(workerPath).href
+    pdfjsInitialised = true
   }
+
+  const doc = await pdfjsLib.getDocument({
+    data: new Uint8Array(buffer),
+    useSystemFonts: true,
+    disableFontFace: true,
+  }).promise
+
+  const pages: string[] = []
+  for (let p = 1; p <= doc.numPages; p++) {
+    const page = await doc.getPage(p)
+    const content = await page.getTextContent()
+    pages.push(
+      content.items
+        .map((item) => ('str' in item ? (item as { str: string }).str : ''))
+        .join(' ')
+    )
+  }
+  return pages.join('\n')
 }
 
 export async function POST(req: NextRequest) {

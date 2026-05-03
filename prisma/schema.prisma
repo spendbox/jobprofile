@@ -9,19 +9,18 @@ datasource db {
 }
 
 // ─── Models ───────────────────────────────────────────────────────────────────
-// Note: id maps to auth.users.id (Supabase Auth).
-// We do not model auth.users itself since it lives in the protected `auth` schema.
 
 model UserProfile {
   id           String   @id @db.Uuid
   full_name    String
-  user_role    String   // 'talent' | 'employer'
+  user_role    String
   company_name String?
   avatar_url   String?
   created_at   DateTime @default(now()) @db.Timestamptz(6)
 
-  profiles           Profile[]
-  sent_requests      InterviewRequest[] @relation("EmployerRequests")
+  profiles      Profile[]
+  sent_requests InterviewRequest[] @relation("EmployerRequests")
+  talent_finds  TalentFind[]
 
   @@map("user_profiles")
 }
@@ -46,25 +45,88 @@ model Profile {
   created_at              DateTime @default(now()) @db.Timestamptz(6)
   updated_at              DateTime @default(now()) @db.Timestamptz(6)
 
-  user               UserProfile        @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  interview_requests InterviewRequest[]
-  views              ProfileView[]
+  user                    UserProfile             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  interview_requests      InterviewRequest[]
+  views                   ProfileView[]
+  talent_find_candidates  TalentFindCandidate[]
 
   @@map("profiles")
 }
 
-model InterviewRequest {
+model TalentFind {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id       String   @db.Uuid
+  role_title        String
+  employment_type   String   // 'fulltime'|'parttime'|'contract'|'volunteer'|'internship'
+  work_arrangement  String   // 'remote'|'hybrid'|'onsite'
+  hiring_country    String?
+  hiring_state      String?
+  min_experience    Int?
+  max_experience    Int?
+  skills            String[]
+  salary_min        Int?
+  salary_max        Int?
+  description       String
+  requirements_text String?
+  custom_questions  Json     @default("[]")
+  status            String   @default("active") // 'active'|'archived'
+  created_at        DateTime @default(now()) @db.Timestamptz(6)
+  updated_at        DateTime @default(now()) @db.Timestamptz(6)
+
+  employer            UserProfile           @relation(fields: [employer_id], references: [id], onDelete: Cascade)
+  candidates          TalentFindCandidate[]
+  interview_requests  InterviewRequest[]
+
+  @@map("talent_finds")
+}
+
+model TalentFindCandidate {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  talent_find_id String   @db.Uuid
+  profile_id     String   @db.Uuid
+  ai_score       Int      @default(0)
+  ai_summary     String?
+  contacted      Boolean  @default(false)
+  created_at     DateTime @default(now()) @db.Timestamptz(6)
+
+  talent_find TalentFind @relation(fields: [talent_find_id], references: [id], onDelete: Cascade)
+  profile     Profile    @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+
+  @@unique([talent_find_id, profile_id])
+  @@map("talent_find_candidates")
+}
+
+model JobOpening {
   id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   employer_id String   @db.Uuid
-  profile_id  String   @db.Uuid
-  status      String   @default("pending") // 'pending' | 'accepted' | 'declined'
-  stage       String   @default("discovered") // 'discovered' | 'interested' | 'interview' | 'offer' | 'hired'
-  message     String?
+  title       String
   created_at  DateTime @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime @default(now()) @db.Timestamptz(6)
 
-  employer UserProfile @relation("EmployerRequests", fields: [employer_id], references: [id], onDelete: Cascade)
-  profile  Profile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  requests InterviewRequest[]
+
+  @@map("job_openings")
+}
+
+model InterviewRequest {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  employer_id      String   @db.Uuid
+  profile_id       String   @db.Uuid
+  status           String   @default("pending")
+  stage            String   @default("discovered")
+  message          String?
+  notes            String?
+  archived         Boolean  @default(false)
+  opening_id       String?  @db.Uuid
+  talent_find_id   String?  @db.Uuid
+  star_rating      Int?
+  question_answers Json?
+  created_at       DateTime @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime @default(now()) @db.Timestamptz(6)
+
+  employer     UserProfile @relation("EmployerRequests", fields: [employer_id], references: [id], onDelete: Cascade)
+  profile      Profile     @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  opening      JobOpening? @relation(fields: [opening_id], references: [id], onDelete: SetNull)
+  talent_find  TalentFind? @relation(fields: [talent_find_id], references: [id], onDelete: SetNull)
 
   @@unique([employer_id, profile_id])
   @@map("interview_requests")

@@ -6,9 +6,8 @@ import Link from 'next/link'
 interface Stats {
   totalTalent: number
   verified: number
-  totalTests: number
-  totalAttempts: number
-  passedAttempts: number
+  totalEmployers: number
+  totalRequests: number
 }
 
 function StatCard({ label, value, sub }: { label: string; value: number; sub?: string }) {
@@ -42,23 +41,15 @@ export default function AdminDashboardPage() {
       {loading ? (
         <div className="text-sm text-slate-500">Loading stats…</div>
       ) : stats ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-10">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-10">
           <StatCard label="Talent Users" value={stats.totalTalent} />
           <StatCard
             label="Verified"
             value={stats.verified}
             sub={stats.totalTalent > 0 ? `${Math.round((stats.verified / stats.totalTalent) * 100)}% of talent` : undefined}
           />
-          <StatCard
-            label="Tests"
-            value={stats.totalTests}
-          />
-          <StatCard label="Test Attempts" value={stats.totalAttempts} />
-          <StatCard
-            label="Passed"
-            value={stats.passedAttempts}
-            sub={stats.totalAttempts > 0 ? `${Math.round((stats.passedAttempts / stats.totalAttempts) * 100)}% pass rate` : undefined}
-          />
+          <StatCard label="Employers" value={stats.totalEmployers} />
+          <StatCard label="Total Requests" value={stats.totalRequests} />
         </div>
       ) : (
         <p className="text-sm text-slate-500">Failed to load stats.</p>
@@ -76,20 +67,20 @@ export default function AdminDashboardPage() {
             </svg>
           </div>
           <p className="font-bold text-white mb-1">Manage Users</p>
-          <p className="text-sm text-slate-400">Verify talent accounts and view test results.</p>
+          <p className="text-sm text-slate-400">Verify talent accounts and manage user roles.</p>
         </Link>
 
         <Link
-          href="/admin/tests"
+          href="/admin/role-titles"
           className="bg-slate-900 border border-slate-800 hover:border-indigo-500 rounded-2xl p-6 group transition-colors"
         >
           <div className="w-10 h-10 bg-indigo-600/20 rounded-xl flex items-center justify-center mb-4 group-hover:bg-indigo-600/30 transition-colors">
             <svg className="w-5 h-5 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              <path strokeLinecap="round" strokeLinejoin="round" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z" />
             </svg>
           </div>
-          <p className="font-bold text-white mb-1">Proficiency Tests</p>
-          <p className="text-sm text-slate-400">Create and manage skill assessment tests.</p>
+          <p className="font-bold text-white mb-1">Role Titles</p>
+          <p className="text-sm text-slate-400">Manage suggested role titles for talent profiles.</p>
         </Link>
       </div>
     </div>

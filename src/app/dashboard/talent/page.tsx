@@ -118,9 +118,6 @@ export default function TalentDashboard() {
           </div>
         </div>
         <div className="flex items-center gap-2 sm:flex-col sm:items-end gap-y-2">
-          <Link href="/dashboard/talent/tests" className="btn-secondary text-sm">
-            Tests
-          </Link>
           <button onClick={() => setModal({ type: 'create' })} className="btn-primary">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
