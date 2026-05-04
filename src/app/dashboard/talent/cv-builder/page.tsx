@@ -5,10 +5,19 @@ export const dynamic = 'force-dynamic'
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Script from 'next/script'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClient } from '@/lib/supabase/client'
 import type { CVBuilderData } from '@/lib/cvDocxGenerator'
 import type { TalentProfile, CVData } from '@/types'
+
+declare global {
+  interface Window {
+    PaystackPop: {
+      setup: (opts: Record<string, unknown>) => { openIframe: () => void }
+    }
+  }
+}
 
 // ─── Convert stored CVData → CVBuilderData ──────────────────────────────────
 function cvDataToBuilder(cv: CVData, profile: TalentProfile): CVBuilderData {
@@ -129,6 +138,10 @@ export default function CVBuilderPage() {
   const [showMobilePreview, setShowMobilePreview] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [pendingUrls, setPendingUrls] = useState<string[]>([])
+  const [cvPaymentDone, setCvPaymentDone] = useState(false)
+  const [showCvPayGate, setShowCvPayGate] = useState(false)
+  const [cvPayLoading, setCvPayLoading] = useState(false)
+  const [cvPayError, setCvPayError] = useState('')
 
   // ── Auth guard ──────────────────────────────────────────────────────────
   useEffect(() => {
@@ -331,8 +344,8 @@ export default function CVBuilderPage() {
     }
   }
 
-  // ── Download DOCX ────────────────────────────────────────────────────────
-  const downloadDocx = async () => {
+  // ── Download DOCX (after payment) ────────────────────────────────────────
+  const doDownload = async () => {
     setDownloading(true)
     try {
       const res = await fetch('/api/cv/generate-docx', {
@@ -355,6 +368,52 @@ export default function CVBuilderPage() {
     }
   }
 
+  const downloadDocx = () => {
+    if (cvPaymentDone) { doDownload(); return }
+    setShowCvPayGate(true)
+  }
+
+  const handleCvPayment = async () => {
+    if (!userProfile) { setCvPayError('Not signed in. Please refresh.'); return }
+    if (!window.PaystackPop) { setCvPayError('Payment system not loaded. Please refresh.'); return }
+    setCvPayLoading(true)
+    setCvPayError('')
+    const { data: { user } } = await supabase.auth.getUser()
+    const email = user?.email
+    if (!email) { setCvPayError('Email not found. Please refresh.'); setCvPayLoading(false); return }
+    const ref = `folio-cv-${userProfile.id}-${Date.now()}`
+    const handler = window.PaystackPop.setup({
+      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '',
+      email,
+      amount: 50000, // NGN 500 in kobo
+      currency: 'NGN',
+      ref,
+      metadata: { user_id: userProfile.id, type: 'cv_download' },
+      callback: async (response: { reference: string }) => {
+        try {
+          const res = await fetch('/api/payments/verify', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ reference: response.reference }),
+          })
+          if (res.ok) {
+            setCvPaymentDone(true)
+            setShowCvPayGate(false)
+            doDownload()
+          } else {
+            setCvPayError('Payment could not be verified. Please contact support.')
+          }
+        } catch {
+          setCvPayError('Network error verifying payment. Please contact support.')
+        } finally {
+          setCvPayLoading(false)
+        }
+      },
+      onClose: () => { setCvPayLoading(false) },
+    })
+    handler.openIframe()
+  }
+
   // ── Keyboard shortcut ────────────────────────────────────────────────────
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -370,6 +429,86 @@ export default function CVBuilderPage() {
   const doneIndex = SECTIONS_ORDER.indexOf(currentSection)
 
   return (
+    <>
+    <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
+
+    {/* ── CV Download payment gate modal ──────────────────────────────────── */}
+    {showCvPayGate && (
+      <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
+        <div className="bg-white w-full sm:max-w-sm rounded-2xl shadow-2xl overflow-hidden">
+          <div className="h-1 bg-slate-900" />
+          <div className="p-6">
+            <div className="flex items-start gap-4 mb-5">
+              <div className="w-11 h-11 bg-slate-900 rounded-xl flex items-center justify-center flex-shrink-0">
+                <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-bold text-slate-900 text-base">Download your CV</h2>
+                <p className="text-sm text-slate-500 mt-0.5">A one-time fee to export your polished DOCX file.</p>
+              </div>
+            </div>
+
+            <div className="space-y-2.5 mb-5">
+              {[
+                'Professional Calibri-formatted DOCX',
+                'Optimised for ATS and recruiter software',
+                'Instantly downloadable — no waiting',
+              ].map((b) => (
+                <div key={b} className="flex items-center gap-2.5">
+                  <div className="w-4 h-4 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg className="w-2.5 h-2.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <span className="text-sm text-slate-700">{b}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="flex items-center justify-between mb-4 py-3 border-t border-b border-slate-100">
+              <span className="text-sm font-semibold text-slate-700">CV download fee</span>
+              <span className="text-xl font-black text-slate-900">₦500 <span className="text-xs font-normal text-slate-400">NGN</span></span>
+            </div>
+
+            {cvPayError && (
+              <div className="bg-red-50 border border-red-200 text-red-700 text-xs rounded-xl px-3 py-2.5 mb-3">
+                {cvPayError}
+              </div>
+            )}
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => { setShowCvPayGate(false); setCvPayError('') }}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleCvPayment}
+                disabled={cvPayLoading}
+                className="flex-1 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-700 text-white text-sm font-semibold transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                {cvPayLoading ? (
+                  <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+                  </svg>
+                )}
+                Pay ₦500
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 text-center mt-2">Secure payment via Paystack. One-time per download session.</p>
+          </div>
+        </div>
+      </div>
+    )}
+
     <div className="flex flex-col h-[calc(100vh-3.5rem)] overflow-hidden bg-slate-50">
 
       {/* ── Top bar ─────────────────────────────────────────────────────── */}
@@ -590,6 +729,7 @@ export default function CVBuilderPage() {
 
       </div>
     </div>
+    </>
   )
 }
 

@@ -340,8 +340,8 @@ export default function VerifyPage() {
     const handler = window.PaystackPop.setup({
       key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '',
       email,
-      amount: 200, // $2 USD in cents
-      currency: 'USD',
+      amount: 500000, // NGN 5,000 in kobo
+      currency: 'NGN',
       ref,
       metadata: { user_id: userProfile.id, type: 'verification' },
       callback: async (response: { reference: string }) => {
@@ -422,7 +422,7 @@ export default function VerifyPage() {
             <div className="border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between mb-4">
                 <span className="text-sm font-semibold text-slate-700">One-time verification fee</span>
-                <span className="text-2xl font-black text-slate-900">$2 <span className="text-sm font-normal text-slate-400">USD</span></span>
+                <span className="text-2xl font-black text-slate-900">₦5,000 <span className="text-sm font-normal text-slate-400">NGN</span></span>
               </div>
 
               {paymentError && (
@@ -449,7 +449,7 @@ export default function VerifyPage() {
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
                     </svg>
-                    Pay $2 &amp; Start Verification
+                    Pay ₦5,000 &amp; Start Verification
                   </>
                 )}
               </button>

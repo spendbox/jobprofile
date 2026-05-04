@@ -8,6 +8,11 @@ export const metadata: Metadata = {
   title: 'Folio — Employers discover you',
   description:
     'Build your profile, set your availability, and let employers come to you with interview requests.',
+  icons: {
+    icon: '/icon.svg',
+    shortcut: '/icon.svg',
+    apple: '/icon.svg',
+  },
 }
 
 export const viewport: Viewport = {

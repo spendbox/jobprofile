@@ -17,7 +17,7 @@ const talentBenefits = [
       </svg>
     ),
     title: 'No weekly subscription fee',
-    desc: 'Unlike other platforms that charge recurring fees, Folio only requires a one-time $2 verification fee to get your badge.',
+    desc: 'Unlike other platforms that charge recurring fees, Folio only requires a one-time ₦5,000 verification fee for your badge — no recurring charges ever.',
   },
   {
     icon: (
@@ -124,7 +124,7 @@ const steps = [
   {
     number: '02',
     title: 'Get verified',
-    desc: "Complete a quick identity check for $2. Verified profiles get 5× more interview requests.",
+    desc: 'Complete a quick identity check for ₦5,000. Verified profiles rank higher and get 5× more interview requests.',
     forTalent: true,
   },
   {
@@ -185,7 +185,7 @@ export default function LandingPage() {
               I&apos;m Hiring — Find Talent
             </Link>
           </div>
-          <p className="text-xs text-slate-600 mt-5">Free to join · One-time $2 verification · No subscription</p>
+          <p className="text-xs text-slate-600 mt-5">Free to join · ₦5,000 one-time verification · ₦500 per CV download · No subscription</p>
         </div>
       </section>
 
@@ -342,7 +342,7 @@ export default function LandingPage() {
           <div className="space-y-3">
             {[
               { theirs: 'You apply to jobs, mostly ignored', ours: 'Employers come to you, you respond' },
-              { theirs: 'Weekly subscription fees', ours: 'One-time $2 verification, nothing more' },
+              { theirs: 'Weekly subscription fees', ours: 'One-time ₦5,000 verification · ₦500 per CV · No recurring fees' },
               { theirs: 'Generic profile, no verification', ours: 'Identity-verified badge, trusted by employers' },
               { theirs: 'One profile per account', ours: 'Multiple role profiles, match more jobs' },
               { theirs: 'You chase companies', ours: 'You get email alerts when companies find you' },
