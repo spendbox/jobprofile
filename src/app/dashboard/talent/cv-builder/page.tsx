@@ -135,7 +135,6 @@ export default function CVBuilderPage() {
   const [downloading, setDownloading] = useState(false)
   const [uploadingCv, setUploadingCv] = useState(false)
   const [uploadError, setUploadError] = useState('')
-  const [showMobilePreview, setShowMobilePreview] = useState(false)
   const [initialized, setInitialized] = useState(false)
   const [pendingUrls, setPendingUrls] = useState<string[]>([])
   const [cvPaymentDone, setCvPaymentDone] = useState(false)
@@ -528,17 +527,6 @@ export default function CVBuilderPage() {
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Mobile preview toggle */}
-          <button
-            onClick={() => setShowMobilePreview((v) => !v)}
-            className="md:hidden flex items-center gap-1.5 text-xs font-medium text-slate-600 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-lg transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
-            </svg>
-            Progress
-          </button>
-
           {isComplete && (
             <button
               onClick={downloadDocx}
@@ -560,21 +548,6 @@ export default function CVBuilderPage() {
           )}
         </div>
       </div>
-
-      {/* ── Mobile progress panel ───────────────────────────────────────── */}
-      {showMobilePreview && (
-        <div className="md:hidden bg-white border-b border-slate-200 px-4 py-3 flex-shrink-0">
-          <ProgressPanel
-            cvData={cvData}
-            currentSection={currentSection}
-            completionPercent={completionPercent}
-            isComplete={isComplete}
-            doneIndex={doneIndex}
-            onDownload={downloadDocx}
-            downloading={downloading}
-          />
-        </div>
-      )}
 
       {/* ── Main layout ─────────────────────────────────────────────────── */}
       <div className="flex flex-1 overflow-hidden">
@@ -636,6 +609,43 @@ export default function CVBuilderPage() {
             )}
             {thinking && <TypingIndicator />}
             <div ref={chatEndRef} />
+          </div>
+
+          {/* ── Mobile sticky progress strip ────────────────────────────── */}
+          <div className="md:hidden flex-shrink-0 bg-white border-t border-slate-200 px-4 py-2.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-[11px] font-semibold text-slate-700 truncate">
+                  {isComplete ? 'CV complete!' : SECTION_LABELS[currentSection] ?? 'Building…'}
+                </span>
+                <span className="text-[11px] text-slate-400 flex-shrink-0 ml-2">{completionPercent}%</span>
+              </div>
+              <div className="h-1 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-slate-900 rounded-full transition-all duration-700"
+                  style={{ width: `${completionPercent}%` }}
+                />
+              </div>
+            </div>
+            {isComplete && (
+              <button
+                onClick={downloadDocx}
+                disabled={downloading}
+                className="flex-shrink-0 flex items-center gap-1.5 bg-slate-900 hover:bg-slate-700 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-colors disabled:opacity-60"
+              >
+                {downloading ? (
+                  <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                )}
+                {downloading ? 'Generating…' : 'Download CV'}
+              </button>
+            )}
           </div>
 
           {/* ── Input area ─────────────────────────────────────────────── */}
@@ -709,127 +719,93 @@ export default function CVBuilderPage() {
         </div>
 
         {/* ── Desktop side panel ───────────────────────────────────────── */}
-        <div className="hidden md:flex flex-col w-72 border-l border-slate-200 bg-white overflow-y-auto">
-          <div className="p-4 border-b border-slate-100">
+        <div className="hidden md:flex flex-col w-72 border-l border-slate-200 bg-white">
+          {/* Fixed header */}
+          <div className="p-4 border-b border-slate-100 flex-shrink-0">
             <h2 className="font-bold text-slate-900 text-sm">CV Progress</h2>
             <p className="text-xs text-slate-500 mt-0.5">Your CV builds as you chat</p>
           </div>
-          <div className="p-4 flex-1">
-            <ProgressPanel
-              cvData={cvData}
-              currentSection={currentSection}
-              completionPercent={completionPercent}
-              isComplete={isComplete}
-              doneIndex={doneIndex}
-              onDownload={downloadDocx}
-              downloading={downloading}
-            />
+
+          {/* Scrollable middle: section checklist + data preview */}
+          <div className="flex-1 overflow-y-auto p-4 space-y-4">
+            {/* Section checklist */}
+            <div className="space-y-0.5">
+              {SECTIONS_ORDER.filter((s) => s !== 'done').map((section, i) => (
+                <SectionCheck
+                  key={section}
+                  label={SECTION_LABELS[section]}
+                  done={i < doneIndex}
+                  active={section === currentSection}
+                />
+              ))}
+            </div>
+
+            {/* CV data preview */}
+            {(cvData.targetRole || cvData.contactInfo?.name) && (
+              <div className="border border-slate-100 rounded-xl p-3 space-y-2 bg-slate-50">
+                <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Collected so far</p>
+                {cvData.contactInfo?.name && <PreviewItem icon="person" label={cvData.contactInfo.name} />}
+                {cvData.targetRole && <PreviewItem icon="target" label={cvData.targetRole} />}
+                {cvData.experience?.length ? <PreviewItem icon="briefcase" label={`${cvData.experience.length} role${cvData.experience.length > 1 ? 's' : ''}`} /> : null}
+                {cvData.education?.length ? <PreviewItem icon="education" label={cvData.education[0].degree} /> : null}
+                {cvData.skills?.length ? <PreviewItem icon="skills" label={`${cvData.skills.length} skills`} /> : null}
+              </div>
+            )}
+
+            {!isComplete && completionPercent > 0 && (
+              <p className="text-[11px] text-slate-400 text-center leading-relaxed">
+                Keep answering the questions above. Your CV is being built in real-time.
+              </p>
+            )}
+          </div>
+
+          {/* Sticky bottom: progress bar + download */}
+          <div className="border-t border-slate-100 p-4 flex-shrink-0 space-y-3">
+            <div>
+              <div className="flex justify-between items-center mb-1.5">
+                <span className="text-xs font-semibold text-slate-700">
+                  {isComplete ? 'CV complete!' : `${completionPercent}% complete`}
+                </span>
+                <span className="text-xs text-slate-400">{isComplete ? '✓' : `${completionPercent}/100`}</span>
+              </div>
+              <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-slate-900 rounded-full transition-all duration-700"
+                  style={{ width: `${completionPercent}%` }}
+                />
+              </div>
+            </div>
+
+            {isComplete && (
+              <button
+                onClick={downloadDocx}
+                disabled={downloading}
+                className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
+              >
+                {downloading ? (
+                  <>
+                    <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                    </svg>
+                    Generating DOCX…
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Download CV (DOCX)
+                  </>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
       </div>
     </div>
     </>
-  )
-}
-
-// ─── Progress panel (shared between mobile/desktop) ─────────────────────────
-function ProgressPanel({
-  cvData, currentSection, completionPercent, isComplete, doneIndex, onDownload, downloading,
-}: {
-  cvData: CVBuilderData
-  currentSection: string
-  completionPercent: number
-  isComplete: boolean
-  doneIndex: number
-  onDownload: () => void
-  downloading: boolean
-}) {
-  return (
-    <div className="space-y-4">
-      {/* Progress bar */}
-      <div>
-        <div className="flex justify-between items-center mb-1.5">
-          <span className="text-xs font-semibold text-slate-700">
-            {isComplete ? 'CV complete!' : `${completionPercent}% complete`}
-          </span>
-          <span className="text-xs text-slate-400">{isComplete ? '✓' : `${completionPercent}/100`}</span>
-        </div>
-        <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-          <div
-            className="h-full bg-slate-900 rounded-full transition-all duration-700"
-            style={{ width: `${completionPercent}%` }}
-          />
-        </div>
-      </div>
-
-      {/* Section checklist */}
-      <div className="space-y-0.5">
-        {SECTIONS_ORDER.filter((s) => s !== 'done').map((section, i) => (
-          <SectionCheck
-            key={section}
-            label={SECTION_LABELS[section]}
-            done={i < doneIndex}
-            active={section === currentSection}
-          />
-        ))}
-      </div>
-
-      {/* CV data preview */}
-      {(cvData.targetRole || cvData.contactInfo?.name) && (
-        <div className="border border-slate-100 rounded-xl p-3 space-y-2 bg-slate-50">
-          <p className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">Collected so far</p>
-          {cvData.contactInfo?.name && (
-            <PreviewItem icon="person" label={cvData.contactInfo.name} />
-          )}
-          {cvData.targetRole && (
-            <PreviewItem icon="target" label={cvData.targetRole} />
-          )}
-          {cvData.experience?.length ? (
-            <PreviewItem icon="briefcase" label={`${cvData.experience.length} role${cvData.experience.length > 1 ? 's' : ''}`} />
-          ) : null}
-          {cvData.education?.length ? (
-            <PreviewItem icon="education" label={cvData.education[0].degree} />
-          ) : null}
-          {cvData.skills?.length ? (
-            <PreviewItem icon="skills" label={`${cvData.skills.length} skills`} />
-          ) : null}
-        </div>
-      )}
-
-      {/* Download button */}
-      {isComplete && (
-        <button
-          onClick={onDownload}
-          disabled={downloading}
-          className="w-full flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-700 text-white font-semibold py-3 rounded-xl text-sm transition-colors disabled:opacity-60"
-        >
-          {downloading ? (
-            <>
-              <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-              Generating DOCX…
-            </>
-          ) : (
-            <>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-              </svg>
-              Download CV (DOCX)
-            </>
-          )}
-        </button>
-      )}
-
-      {/* Restart hint */}
-      {!isComplete && completionPercent > 0 && (
-        <p className="text-[11px] text-slate-400 text-center leading-relaxed">
-          Keep answering the questions above. Your CV is being built in real-time.
-        </p>
-      )}
-    </div>
   )
 }
 
