@@ -343,8 +343,9 @@ export default function CVBuilderPage() {
     }
   }
 
-  // ── Download DOCX (after payment) ────────────────────────────────────────
+  // ── Download DOCX (requires prior payment) ──────────────────────────────
   const doDownload = async () => {
+    if (!cvPaymentDone) { setShowCvPayGate(true); return }
     setDownloading(true)
     try {
       const res = await fetch('/api/cv/generate-docx', {
@@ -372,11 +373,28 @@ export default function CVBuilderPage() {
     setShowCvPayGate(true)
   }
 
+  const waitForPaystack = (): Promise<void> =>
+    new Promise((resolve, reject) => {
+      if (window.PaystackPop) { resolve(); return }
+      let attempts = 0
+      const id = setInterval(() => {
+        attempts++
+        if (window.PaystackPop) { clearInterval(id); resolve() }
+        else if (attempts >= 20) { clearInterval(id); reject(new Error('timeout')) }
+      }, 250)
+    })
+
   const handleCvPayment = async () => {
     if (!userProfile) { setCvPayError('Not signed in. Please refresh.'); return }
-    if (!window.PaystackPop) { setCvPayError('Payment system not loaded. Please refresh.'); return }
     setCvPayLoading(true)
     setCvPayError('')
+    try {
+      await waitForPaystack()
+    } catch {
+      setCvPayError('Payment system failed to load. Please refresh the page and try again.')
+      setCvPayLoading(false)
+      return
+    }
     const { data: { user } } = await supabase.auth.getUser()
     const email = user?.email
     if (!email) { setCvPayError('Email not found. Please refresh.'); setCvPayLoading(false); return }
@@ -429,7 +447,7 @@ export default function CVBuilderPage() {
 
   return (
     <>
-    <Script src="https://js.paystack.co/v1/inline.js" strategy="lazyOnload" />
+    <Script src="https://js.paystack.co/v1/inline.js" strategy="afterInteractive" />
 
     {/* ── CV Download payment gate modal ──────────────────────────────────── */}
     {showCvPayGate && (
@@ -719,7 +737,7 @@ export default function CVBuilderPage() {
         </div>
 
         {/* ── Desktop side panel ───────────────────────────────────────── */}
-        <div className="hidden md:flex flex-col w-72 border-l border-slate-200 bg-white">
+        <div className="hidden md:flex flex-col w-72 border-l border-slate-200 bg-white overflow-hidden">
           {/* Fixed header */}
           <div className="p-4 border-b border-slate-100 flex-shrink-0">
             <h2 className="font-bold text-slate-900 text-sm">CV Progress</h2>
