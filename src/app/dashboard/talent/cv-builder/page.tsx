@@ -343,9 +343,8 @@ export default function CVBuilderPage() {
     }
   }
 
-  // ── Download DOCX (requires prior payment) ──────────────────────────────
+  // ── Download DOCX ─────────────────────────────────────────────────────────
   const doDownload = async () => {
-    if (!cvPaymentDone) { setShowCvPayGate(true); return }
     setDownloading(true)
     try {
       const res = await fetch('/api/cv/generate-docx', {
@@ -386,6 +385,11 @@ export default function CVBuilderPage() {
 
   const handleCvPayment = async () => {
     if (!userProfile) { setCvPayError('Not signed in. Please refresh.'); return }
+    const publicKey = process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY
+    if (!publicKey) {
+      setCvPayError('Payment is not configured. Please contact support.')
+      return
+    }
     setCvPayLoading(true)
     setCvPayError('')
     try {
@@ -400,7 +404,7 @@ export default function CVBuilderPage() {
     if (!email) { setCvPayError('Email not found. Please refresh.'); setCvPayLoading(false); return }
     const ref = `folio-cv-${userProfile.id}-${Date.now()}`
     const handler = window.PaystackPop.setup({
-      key: process.env.NEXT_PUBLIC_PAYSTACK_PUBLIC_KEY ?? '',
+      key: publicKey,
       email,
       amount: 50000, // NGN 500 in kobo
       currency: 'NGN',
@@ -416,6 +420,8 @@ export default function CVBuilderPage() {
           if (res.ok) {
             setCvPaymentDone(true)
             setShowCvPayGate(false)
+            // Call doDownload() directly here — DO NOT go through downloadDocx()
+            // because React state (cvPaymentDone) hasn't flushed yet at this point.
             doDownload()
           } else {
             setCvPayError('Payment could not be verified. Please contact support.')
